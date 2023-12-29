@@ -101,7 +101,7 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
                                                 np.nan)
     df.loc[:, 'Status'] = df['SurvivalUPDATED'] == 'N'
     warnings.simplefilter(action='ignore', category=FutureWarning)
-    warnings.simplefilter(action='ignore', category=Perf)
+    #warnings.simplefilter(action='ignore', category=Per)
 
     for index,row in df.iterrows():
         #Calculate number of Treatments: find first nan value in treatment_dates_columns

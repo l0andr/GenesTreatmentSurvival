@@ -16,6 +16,7 @@ relation between mutations and treatment response.
    
 ### Content
 
+prepare_input_data.py - script for convertion raw data to expected data format
 EDA_report.py - script for initial exploratory data analysis of survival data
 initial_survival_analysis.py - script for initial survival analysis
-prepare_input_data.py - script for convertion raw data to expected data format
+pipeline.sh - script for running all analysis steps
