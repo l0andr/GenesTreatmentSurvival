@@ -70,7 +70,7 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
             except Exception as e:
                 continue
     warnings.resetwarnings()
-    print(date_columns)
+    #print(date_columns)
 
     df.loc[:, 'max_date'] = df[date_columns].apply(
         lambda row: max([date for date in row if pd.notna(date)], default=np.nan), axis=1)
@@ -101,7 +101,8 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
                                                 np.nan)
     df.loc[:, 'Status'] = df['SurvivalUPDATED'] == 'N'
     warnings.simplefilter(action='ignore', category=FutureWarning)
-    #warnings.simplefilter(action='ignore', category=Per)
+    warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
+
 
     for index,row in df.iterrows():
         #Calculate number of Treatments: find first nan value in treatment_dates_columns

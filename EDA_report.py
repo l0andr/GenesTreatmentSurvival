@@ -212,7 +212,6 @@ if __name__ == '__main__':
     cmethod = 'average'
     cmetric = 'cosine'
     Z = linkage(np.transpose(df_tmp.values), method = cmethod,metric=cmetric)
-    print(Z)
     #plot dendrogram of Z with labels from df_tmp.columns rotated on 90 degree
     dn = dendrogram(Z, labels=df_tmp.columns, ax=ax)
     ax.set_xticklabels(df_tmp.columns, rotation=90, ha='right')

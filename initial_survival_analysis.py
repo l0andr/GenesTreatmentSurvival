@@ -45,18 +45,17 @@ def compute_survival_p_values(df:pd.DataFrame,column_name:str,
 
 def plot_kaplan_meier(df_pu:pd.DataFrame,column_name:str,
                       status_column:str="Status",survival_in_days:str="Survival_in_days",plot_pvalues=True):
+
     fig = plt.figure()
     p_values={}
     diff_values = df_pu[column_name].dropna().unique().tolist()
     for s in diff_values:
         mask_treat = df_pu[column_name] == s
-        warnings.simplefilter('ignore')
         time_treatment, survival_prob_treatment, conf_int = kaplan_meier_estimator(
             df_pu[status_column][mask_treat],
             df_pu[survival_in_days][mask_treat],
             conf_type="log-log",
         )
-        warnings.resetwarnings()
         p_values[s] = logrank_test(df_pu[status_column][mask_treat], df_pu[status_column][~mask_treat],
                                    df_pu[survival_in_days][mask_treat], df_pu[survival_in_days][~mask_treat]).p_value
         if len(diff_values) > 1 and plot_pvalues:
@@ -119,6 +118,10 @@ def fit_and_score_features(X, y):
 
 
 if __name__ == '__main__':
+    warnings.simplefilter(action='ignore', category=FutureWarning)
+    warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
+    warnings.simplefilter(action='ignore', category=RuntimeWarning)
+
     parser = argparse.ArgumentParser(description="Perform initial survival analysis",
         formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-input_csv", help="Input CSV files", type=str, required=True)
@@ -343,5 +346,5 @@ if __name__ == '__main__':
 
     results_table = pd.DataFrame(factor_analysis)
     results_table.to_csv('factor_importance.csv')
-    print(results_table)
+    #print(results_table)
     #plt.show()
