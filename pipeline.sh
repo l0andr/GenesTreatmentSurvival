@@ -14,4 +14,4 @@ fi
 
 python prepare_input_data.py -input_csv $1 -output_csv transform1.csv
 python EDA_report.py -input_csv transform1.csv -output_csv transform2.csv -output_pdf EDA_report.pdf
-python initial_survival_analysis.py -input_csv transform2.csv --genes "TP53,CDKN2A" --factors "sex,alcohol" -output_pdf initial_survival_analysis.pdf
+python survival_analysis_initial_report -input_csv transform2.csv --genes "TP53,CDKN2A" --factors "sex,alcohol" -output_pdf survival_analysis_initial_report.pdf
