@@ -13,7 +13,7 @@ from sksurv.preprocessing import OneHotEncoder
 from lifelines.statistics import logrank_test,multivariate_logrank_test
 from lifelines import KaplanMeierFitter
 from sklearn.decomposition import PCA
-
+from utility_functions import prepare_columns_for_model,convert_to_float_and_normalize,prepare_columns_for_analysis
 import warnings
 
 def plot_value_counts(df, columns):
@@ -78,21 +78,24 @@ def plot_number_of_unique_values(df:pd.DataFrame, columns:Optional[List[str]] = 
 def plot_histograms_of_float_values(df_clean:pd.DataFrame):
     # plot in one figure histogram of all float columns with number of unique values more than sqrt(len(df.index))
     df_tmp = df_clean.loc[:, df_clean.dtypes == np.float64]
-    df_tmp = df_tmp.loc[:, df_tmp.nunique() > np.sqrt(len(df_clean.index))/2]
+    #df_tmp = df_tmp.loc[:, df_tmp.nunique() > np.sqrt(len(df_clean.index))/2]
     # and write median value in the title of each axes
-    fig, ax = plt.subplots(figsize=(18, 10), nrows=len(df_tmp.columns))
+    fig, ax = plt.subplots(figsize=(18, 10), nrows=len(df_tmp.columns)//2, ncols=2)
     if not (isinstance(ax,list) or isinstance(ax,np.ndarray)):
         ax = [ax]
     for i, col in enumerate(df_tmp.columns):
-        ax[i].hist(df_tmp[col], bins=int(np.sqrt(len(df_clean.index))))
-        ax[i].set_title(f'{col}. Median = {df_tmp[col].median():.2f}')
-        ax[i].grid()
+        ax[i//2,i%2].hist(df_tmp[col], bins=int(np.sqrt(len(df_clean.index))))
+        ax[i//2,i%2].set_title(f'{col}. Median = {df_tmp[col].median():.2f}')
+        ax[i//2,i%2].grid()
+    plt.tight_layout()
     return fig, ax
 
 def plot_piecharts_of_categorial_variables(df_clean:pd.DataFrame):
     df_tmp = df_clean.loc[:, ~df_clean.columns.str.contains('date', case=False)]
-    df_tmp = df_tmp.loc[:, df_tmp.nunique() <= np.sqrt(len(df_clean.index)) / 2]
+    #df_tmp = df_tmp.loc[:, df_tmp.nunique() <= np.sqrt(len(df_clean.index)) / 2]
     df_tmp = df_tmp.loc[:, ~df_tmp.columns.str.contains('gene_', case=False)]
+    #select only categorial columns
+    df_tmp = df_tmp.loc[:, df_tmp.dtypes == 'category' ]
     # calculate nrows and ncols - number of rows and columns in the figure
     nrows = min([3, len(df_tmp.columns)])
     ncols = int(np.ceil(len(df_tmp.columns) / nrows))
@@ -101,8 +104,11 @@ def plot_piecharts_of_categorial_variables(df_clean:pd.DataFrame):
     if nrows == 1:
         ax = [ax]
     for i, col in enumerate(df_tmp.columns):
-        df_tmp[col].value_counts().plot.pie(ax=ax[i // ncols, i % ncols], autopct='%.2f', fontsize=10)
+        df_tmp[col].value_counts(dropna=False).plot.pie(ax=ax[i // ncols, i % ncols], autopct='%.2f', fontsize=10)
         ax[i // ncols, i % ncols].set_title(f'{col}')
+    for j in range(i + 1, nrows * ncols):
+        fig.delaxes(ax[j // ncols, j % ncols])
+    plt.tight_layout()
     return fig, ax
 
 if __name__ == '__main__':
@@ -111,6 +117,9 @@ if __name__ == '__main__':
     parser.add_argument("-input_csv", help="Input CSV files", type=str, required=True)
     parser.add_argument("-output_pdf", help="Exploration data analysis report", type=str, required=True)
     parser.add_argument("-output_csv", help="Output CSV files", type=str, required=True)
+    parser.add_argument("-outlier_threshold", help="Threshold for outlier detection", type=float, default=0.5)
+    parser.add_argument("--verbose", help="Verbose level", type=int, default=0)
+
     parser.add_argument("--show", help="If set, plots will be shown", default=False,
                         action='store_true')
 
@@ -119,17 +128,20 @@ if __name__ == '__main__':
     duplication_symbols = ['-', '.', 'duplicate']
     patient_id_column = 'patient_name'
     df_clean = pd.read_csv(args.input_csv)
-
-
+    df_clean.dropna(inplace=True, thresh=len(df_clean.columns) // 2)
+    df_clean = prepare_columns_for_analysis(df_clean, verbose=1)
+    df_clean.info()
     pp = PdfPages(args.output_pdf)
     # filter out dolumns with float values and dates
     df_tmp = df_clean.loc[:, df_clean.dtypes != np.float64]
     df_tmp = df_tmp.loc[:, df_clean.dtypes != np.datetime64]
     # filter out columns with strings contained datetime
     df_tmp = df_tmp.loc[:, ~df_tmp.columns.str.contains('date', case=False)]
+    df_tmp = df_tmp.loc[:, ~df_tmp.columns.str.contains('days', case=False)]
     fig,ax = plot_number_of_unique_values(df_tmp, uthres=2); pp.savefig(fig)
     fig,ax = plot_histograms_of_float_values(df_clean); pp.savefig(fig)
     fig,ax = plot_piecharts_of_categorial_variables(df_clean); pp.savefig(fig)
+
     #select all columns of df_clean to df_tmp except columns with strings
     df_tmp = df_clean.loc[:, df_clean.dtypes != object]
     df_tmp = df_tmp.loc[:, ~df_tmp.columns.str.contains('date', case=False)]
@@ -150,7 +162,7 @@ if __name__ == '__main__':
     #plot mean location as red X symbol
     ax2.scatter(X_pca[:, 0].mean(), X_pca[:, 1].mean(), marker='x', color='red',s = 100,label='mean case')
     #plot by red points that are on the distance more than 2*std from mean
-    dth = np.max(np.sqrt((X_pca[:, 0] - X_pca[:, 0].mean()) ** 2 + (X_pca[:, 1] - X_pca[:, 1].mean()) ** 2))*0.7
+    dth = np.max(np.sqrt((X_pca[:, 0] - X_pca[:, 0].mean()) ** 2 + (X_pca[:, 1] - X_pca[:, 1].mean()) ** 2))*args.outlier_threshold
     ax2.scatter(X_pca[:, 0][np.sqrt((X_pca[:, 0] - X_pca[:, 0].mean()) ** 2 + (X_pca[:, 1] - X_pca[:, 1].mean()) ** 2) > dth ],
                 X_pca[:, 1][np.sqrt((X_pca[:, 0] - X_pca[:, 0].mean()) ** 2 + (X_pca[:, 1] - X_pca[:, 1].mean()) ** 2) > dth ],
                 marker='o', color='red',label='outliers')
@@ -166,7 +178,8 @@ if __name__ == '__main__':
     df_clean['distance_from_mean'] = df_tmp['distance_from_mean']
     #add column to df_clean with outliers
     df_clean['outlier'] = np.sqrt((X_pca[:, 0] - X_pca[:, 0].mean()) ** 2 + (X_pca[:, 1] - X_pca[:, 1].mean()) ** 2) > dth
-    print(df_clean[df_clean['outlier'] == True])
+    if args.verbose >= 1:
+        print(f'Outliers are: {df_clean.loc[df_clean["outlier"] == True,"patient_id"].tolist()}')
 
     pp.savefig(fig)
 
@@ -205,6 +218,7 @@ if __name__ == '__main__':
     ax.set_yticks(range(len(df_tmp.columns)))
     ax.set_yticklabels(df_tmp.columns)
     pp.savefig(fig)
+    df_clean.dropna(inplace=True, thresh=len(df_clean.columns) // 2)
 
     #plot compute heiraarchical clustering of genes
     from scipy.cluster.hierarchy import dendrogram, linkage
@@ -225,5 +239,4 @@ if __name__ == '__main__':
 
     if args.show:
         plt.show()
-
     df_clean.to_csv(args.output_csv, index=False)

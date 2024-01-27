@@ -5,7 +5,12 @@ import argparse
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 #warnings.simplefilter(action='ignore', category=PerformanceWarning)
-
+def convert_int(x):
+    try:
+        x = int(x)
+    except:
+        x = None
+    return x
 
 def expand_values_for_patients(initial_df:pd.DataFrame,list_of_expand_marks:List[str],patients_id_columns:str):
     cols_with_dot_or_dash = initial_df.columns[initial_df.isin(list_of_expand_marks).any()].tolist()
@@ -80,6 +85,7 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
 
     df.loc[:,'last_report_date'] = pd.NaT
     last_date_columns.append('max_date')
+
     for c in last_date_columns:
         df.loc[df['last_report_date'].isna(), 'last_report_date'] = df[df['last_report_date'].isna()][c]
 
@@ -104,12 +110,39 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
     warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 
 
+    c2 = 'First IMTX course end date OR date of progression'
+    c1 = 'First IMTX course start date'
+    #if df[c2] == current date then immunotherapy is ongoing and date should be set = last_report_date
+    df.loc[df[c2] == 'current',c2] = df[df[c2] == 'current']['last_report_date']
+    df[c1] = pd.to_datetime(df[c1], errors='coerce')
+    df[c2] = pd.to_datetime(df[c2], errors='coerce')
+    df.loc[:, 'Length of Immunotherapy'] = np.where(df[c1].notna() & df[c2].notna(), (df[c2] - df[c1]).dt.days + 1,
+                                             np.nan)
+    # if 'Length of Immunotherapy' is nan then should set 0
+    df.loc[df['Length of Immunotherapy'].isna(),'Length of Immunotherapy'] = 0
+    # if 'Length of Immunotherapy' more than median then columns ImunoDurationLess = 'long' and 'short' otherwise
+    imunno_median = 63 #df.drop_duplicates(subset='patient_name')['Length of Immunotherapy'].median()
+    imdur_column_name = f'imuno_duration_levels'
+    df.loc[df['Length of Immunotherapy'] > imunno_median, imdur_column_name] = 2
+    df.loc[df['Length of Immunotherapy'] <= imunno_median,  imdur_column_name ] = 1
+    df.loc[df['Length of Immunotherapy'] < 2, imdur_column_name] = 0
+    tmb_percentile_median = df.drop_duplicates(subset='patient_name')['tmb_percentile'].median()
+    tmb_percent_column_name = f'tmb_percentile_levels'
+    df.loc[df['Length of Immunotherapy'] > tmb_percentile_median, tmb_percent_column_name] = f'over{int(tmb_percentile_median)}'
+    df.loc[df['Length of Immunotherapy'] <= tmb_percentile_median, tmb_percent_column_name] = f'less{int(tmb_percentile_median)}'
+
     for index,row in df.iterrows():
         #Calculate number of Treatments: find first nan value in treatment_dates_columns
         for i in range(len(treatment_dates_columns)):
             if pd.isna(row[treatment_dates_columns[i]]):
                 break   #i is number of treatments
-        df.loc[index,'Number of Treatments'] = i - 1
+        df.loc[index,'Number of Treatments'] = i + 1
+        #Convert columns Number of Treatments and Anatomic stage to int
+        df.loc['Number of Treatments'] = df['Number of Treatments'].apply(lambda x: convert_int(x))
+        df.loc['Anatomic stage'] = df['Anatomic stage'].apply(lambda x: convert_int(x))
+
+
+
         min_time_interval_days = None
         treatment_date = None
         treatment_type = None
@@ -134,6 +167,10 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
         df.loc[index, 'treatment_type'] = treatment_type
         df.loc[index, 'treatment_response'] = treatment_response
 
+        #convert treatment_response columns (containing floats 0.0 - 3.0 and None) to int
+
+        df.loc['treatment_response'] = df['treatment_response'].apply(lambda x: convert_int(x))
+
         recurrence_date = pd.NaT
         recurrence_time_interval = None
         for j in range(i):
@@ -154,6 +191,16 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
 
         df.loc[index, 'recurrence_date'] = recurrence_date
 
+    # replace None in P16 column by 0
+    #convert P16 column to string
+    df.loc['P16+'] = df['P16+'].apply(lambda x: str(x))
+    df.loc[df['P16+'].isna(), 'P16+'] = 'N'
+    # replace 0 in P16 column by 'N'
+    df.loc[df['P16+'] == '0', 'P16+'] = 'N'
+    # replace 1 in P16 column by 'Y'
+    df.loc[df['P16+'] == '1', 'P16+'] = 'Y'
+
+
     df.loc[:, 'recurrence_status'] = True
     df.loc[df['recurrence_date'].isna() & df['Date of Death'].isna(), 'recurrence_status'] = False
 
@@ -163,6 +210,7 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
     c2 = 'treatment_date'
     c1 = 'recurrence_date'
     df.loc[:, 'recurrence_in_days'] = np.where(df[c1].notna() & df[c2].notna(), (df[c1] - df[c2]).dt.days,np.nan)
+    df.loc['Prior cancer?'] = df['Prior cancer?'].apply(lambda x: x == 'Y')
 
     columns_rename = {"patient_name": "patient_id",
                       "Age": "age",
@@ -171,20 +219,28 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
                       "Alcohol use": "alcohol",
                       "Drug use hx?": "drugs",
                       "Cancer Type. Simple": "cancer_type",
-                      "Initial Staging": "cancer_stage",
+                      "Anatomic stage": "cancer_stage",
                       "treatment_type": "treatment",
                       "treatment_response": "response",
                       "Status":"status",
                       "Survival_in_days": "survival_in_days",
                       "recurrence_status": "disease-free-status",
                       "recurrence_in_days":"disease-free-time",
+                      "Length of Immunotherapy":"immunotherapy_in_days",
+                      imdur_column_name:imdur_column_name,
+                      tmb_percent_column_name:tmb_percent_column_name,
+                      "tmb_value":"tmb_value",
+                      "tmb_percentile":"tmb_percentile",
                       "initial_report_date":"initial_report_date",
                       "initial_date": "initial_date",
+                      "Initial Treatment Part 1": "initial_treatment",
                       "min_date":"min_date",
                       "last_report_date":"last_date",
                       "Date of Death":"death_date",
+                      "Prior cancer?":"prior_cancer",
                       "treatment_date":"treatment_date",
                       "recurrence_date":"recurrence_date",
+                      "Number of Treatments":"number_of_treatments",
                       "gene":"gene",
                       "P16+": "p16"}
     df_clean = df[list(columns_rename.keys())]

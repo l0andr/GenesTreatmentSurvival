@@ -176,8 +176,10 @@ if __name__ == '__main__':
     for non_zero_counts_column in non_zero_counts.index:
         if non_zero_counts[non_zero_counts_column] < min_number_of_cases_of_mutations:
             df_clean.drop(columns=[non_zero_counts_column],inplace=True)
+
     df_clean = df_clean[df_clean['outlier'] == False]
-    #df_clean.dropna(subset=['survival_in_days'],inplace=True)
+    df_clean['status'] = df_clean['status'].astype(bool)
+    '''
     data_y = df_clean[['status', 'survival_in_days']].to_records(index=False)
     data_x = df_clean.drop(columns=['survival_in_days','status',"disease-free-status","disease-free-time",
                                     'patient_id','initial_date','initial_report_date','min_date','last_date','death_date'
@@ -186,6 +188,7 @@ if __name__ == '__main__':
     data_x_norm = dataframe_normalization(data_x)
     Xt = OneHotEncoder().fit_transform(data_x_norm.astype('category'))
     set_config(display="text")  # displays text representation of estimators
+
     estimator = CoxPHSurvivalAnalysis(alpha=0.01, ties='breslow', n_iter=100, tol=1e-09, verbose=0)
     estimator.fit(data_x_norm, data_y)
 
@@ -198,11 +201,16 @@ if __name__ == '__main__':
 
     phazards_dfree = pd.Series(scores, index=data_x_norm.columns).sort_values(ascending=False)
 
+    #show columns with NaN values in df_clean
+    print(df_clean.columns[df_clean.isna().any()].tolist())
+    #show rows with NaN values in df_clean
+    print(df_clean[df_clean.isna().any(axis=1)])
+
     df_clean['patients'] = 'ALL'
     fig = plot_kaplan_meier(df_clean, column_name='patients', status_column='status',
                             survival_in_days='survival_in_days')
     pp.savefig(fig)
-
+    '''
     for gi in genes_of_interest:
         gene_column_name = genes_prefix + gi
         if gene_column_name in df_clean.columns:
@@ -228,6 +236,7 @@ if __name__ == '__main__':
     genes_treatment_analysis = {'factor': [],
                        'pval_survival': [], 'pval_disease_free': [],
                        'median_survival': [], 'median_disease_free': []}
+    '''
     for gene in  genes_treatment:
         for unique_treatment in df_clean['treatment'].dropna().unique():
             factor_name = 'treatment_' + str(unique_treatment)+"_"+gene
@@ -311,8 +320,9 @@ if __name__ == '__main__':
                 genes_treatment_analysis2['median_disease_free'].append(str(mst_dfree))
     results_table = pd.DataFrame(genes_treatment_analysis2)
     results_table.to_csv('treatment_factor_importance2.csv')
-
+    '''
     pp.close()
+    '''
     factor_analysis = {'factor':[],
                        'pval_survival':[],'pval_disease_free':[],
                        'median_survival':[],'median_disease_free':[],
@@ -346,5 +356,7 @@ if __name__ == '__main__':
 
     results_table = pd.DataFrame(factor_analysis)
     results_table.to_csv('factor_importance.csv')
+    
     #print(results_table)
     #plt.show()
+    '''

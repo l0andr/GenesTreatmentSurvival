@@ -5,3 +5,4 @@ scikit-survival>=0.21.0
 matplotlib
 lifelines
 seaborn
+tqdm
