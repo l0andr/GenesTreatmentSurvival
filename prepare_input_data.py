@@ -41,8 +41,9 @@ def find_date_columns(df):
             date_cols.append(col)
     return date_cols
 
-def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[str],date_columns_spec:Optional[List[str]]=None):
+def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[str],date_columns_spec:Optional[List[str]]=None,max_survival_length:float=365*5):
     # Remove columns with same values for all patients and all genes
+
     df.columns = df.columns.str.replace(r'\(.*?\)', '').str.strip()
     unique_counts = df[df.columns].nunique()
     unique_counts = unique_counts[unique_counts <= 1]
@@ -67,6 +68,7 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
     if date_columns_spec is None:
         date_columns_spec = find_date_columns(df)
     date_columns = []
+    print(f"1Number of patients {len(df['patient_name'].unique())}")
     for col in date_columns_spec:
         if col in df.columns:
             try:
@@ -85,7 +87,7 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
 
     df.loc[:,'last_report_date'] = pd.NaT
     last_date_columns.append('max_date')
-
+    print(f"2Number of patients {len(df['patient_name'].unique())}")
     for c in last_date_columns:
         df.loc[df['last_report_date'].isna(), 'last_report_date'] = df[df['last_report_date'].isna()][c]
 
@@ -130,16 +132,14 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
     tmb_percent_column_name = f'tmb_percentile_levels'
     df.loc[df['Length of Immunotherapy'] > tmb_percentile_median, tmb_percent_column_name] = f'over{int(tmb_percentile_median)}'
     df.loc[df['Length of Immunotherapy'] <= tmb_percentile_median, tmb_percent_column_name] = f'less{int(tmb_percentile_median)}'
+    print(f"3Number of patients {len(df['patient_name'].unique())}")
 
     for index,row in df.iterrows():
         #Calculate number of Treatments: find first nan value in treatment_dates_columns
         for i in range(len(treatment_dates_columns)):
             if pd.isna(row[treatment_dates_columns[i]]):
                 break   #i is number of treatments
-        df.loc[index,'Number of Treatments'] = i + 1
-        #Convert columns Number of Treatments and Anatomic stage to int
-        df.loc['Number of Treatments'] = df['Number of Treatments'].apply(lambda x: convert_int(x))
-        df.loc['Anatomic stage'] = df['Anatomic stage'].apply(lambda x: convert_int(x))
+        df.loc[index,'Number of Treatments'] = i
 
 
 
@@ -169,7 +169,6 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
 
         #convert treatment_response columns (containing floats 0.0 - 3.0 and None) to int
 
-        df.loc['treatment_response'] = df['treatment_response'].apply(lambda x: convert_int(x))
 
         recurrence_date = pd.NaT
         recurrence_time_interval = None
@@ -191,8 +190,13 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
 
         df.loc[index, 'recurrence_date'] = recurrence_date
 
+    df.loc['treatment_response'] = df['treatment_response'].apply(lambda x: convert_int(x))
+    df.loc['Number of Treatments'] = df['Number of Treatments'].apply(lambda x: convert_int(x))
+    df.loc['Anatomic stage'] = df['Anatomic stage'].apply(lambda x: convert_int(x))
+    #remove all rows with empty patient_name
     # replace None in P16 column by 0
     #convert P16 column to string
+    print(f"4Number of patients {len(df['patient_name'].unique())}")
     df.loc['P16+'] = df['P16+'].apply(lambda x: str(x))
     df.loc[df['P16+'].isna(), 'P16+'] = 'N'
     # replace 0 in P16 column by 'N'
@@ -212,14 +216,27 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
     df.loc[:, 'recurrence_in_days'] = np.where(df[c1].notna() & df[c2].notna(), (df[c1] - df[c2]).dt.days,np.nan)
     df.loc['Prior cancer?'] = df['Prior cancer?'].apply(lambda x: x == 'Y')
 
+    #age upper median
+    age_median = df.drop_duplicates(subset='patient_name')['Age'].median()
+    age_quantile_75 = df.drop_duplicates(subset='patient_name')['Age'].quantile(0.75)
+    df.loc[df['Age'] > age_median, 'age_level'] = 1
+    df.loc[df['Age'] <= age_median, 'age_level'] = 0
+    df.loc[df['Age'] >= age_quantile_75, 'age_level'] = 2
+    #total number of mutation as sum of all columns that start from genes_ prefix
+    #if ENE? have value not from list ['Y','N'] then set to None
+    df.loc[df['ENE?'].apply(lambda x: x not in ['Y','N']), 'ENE?'] = None
+    df.loc[df['PNI?'].apply(lambda x: x not in ['Y', 'N']), 'PNI?'] = None
+    df.loc[df['LVSI?'].apply(lambda x: x not in ['Y', 'N']), 'LVSI?'] = None
+
     columns_rename = {"patient_name": "patient_id",
                       "Age": "age",
+                      "age_level":"age_level",
                       "sex":"sex",
                       "Smoking hx?": "smoking",
                       "Alcohol use": "alcohol",
                       "Drug use hx?": "drugs",
                       "Cancer Type. Simple": "cancer_type",
-                      "Anatomic stage": "cancer_stage",
+                      "Anatomic stage": "anatomic_stage",
                       "treatment_type": "treatment",
                       "treatment_response": "response",
                       "Status":"status",
@@ -229,8 +246,6 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
                       "Length of Immunotherapy":"immunotherapy_in_days",
                       imdur_column_name:imdur_column_name,
                       tmb_percent_column_name:tmb_percent_column_name,
-                      "tmb_value":"tmb_value",
-                      "tmb_percentile":"tmb_percentile",
                       "initial_report_date":"initial_report_date",
                       "initial_date": "initial_date",
                       "Initial Treatment Part 1": "initial_treatment",
@@ -241,16 +256,55 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
                       "treatment_date":"treatment_date",
                       "recurrence_date":"recurrence_date",
                       "Number of Treatments":"number_of_treatments",
+                      "cohort":"cohort",
                       "gene":"gene",
-                      "P16+": "p16"}
+                      "P16+": "p16",
+                      "race":"race",
+                      "ENE?":"ene",
+                      "PNI?":"pni",
+                      "LVSI?":"lvi",
+                      "PDL1 Expression":"pdl1",
+                      "PDL-1 Category": "pdl1_category",
+                      "Smoking  pack-years": "smoking_packs",
+                      "tmb_value":"tmb_value",
+                      "msi_status":"msi_status",
+                      "tmb_percentile":"tmb_percentile",
+                      "tmb":"tmb_level"}
+
+    i = 0
+    for tfield in treatment_columns:
+        rfield = treatment_response_columns[i]
+        tdfield = treatment_dates_columns[i]
+        columns_rename[tfield] = f'treatment_type{i}'
+        columns_rename[rfield] = f'response_{i}'
+        c2 = tdfield
+        c1 = 'initial_date'
+        #convert column c2 to datetime
+        df[c2] = pd.to_datetime(df[c2], errors='coerce')
+        df.loc[:, f'treatment_time{i}'] = np.where(df[c1].notna() & df[c2].notna(), (df[c2] - df[c1]).dt.days,
+                                                 np.nan)
+        columns_rename[f'treatment_time{i}'] = f'treatment_time{i}'
+        i += 1
+    #in df[race] replace values: 0=white, 1=black, 2=other, 3=unknown
+    df = df[df['patient_name'].notna()]
     df_clean = df[list(columns_rename.keys())]
     df_clean = df_clean.rename(columns=columns_rename)
     df_clean.drop_duplicates(subset=['patient_id','gene'],inplace=True)
+    replacement_dict = {0: 'white', 1: 'black', 2: 'other', 3: 'unknown'}
+    df_clean.loc[:,'race'] = df_clean['race'].replace(replacement_dict)
+    replacement_dict = {'0': 'N', '1': 'Y', '': 'unknown'}
+    df_clean.loc[:, 'pdl1'] = df_clean['pdl1'].replace(replacement_dict)
     df_pivot = df_clean[['patient_id','gene']].pivot_table(index='patient_id', columns='gene', aggfunc=len, fill_value=0)
     df_pivot.columns = ['gene_' + col for col in df_pivot.columns]
     df_clean.drop_duplicates(subset='patient_id',inplace=True)
     df_clean.drop(columns=['gene'],inplace=True)
     df_clean = df_clean.merge(df_pivot,how='left',on='patient_id')
+    df_clean['total_mutations'] = df_clean.filter(like='gene_').sum(axis=1)
+    survival_time_col = 'survival_in_days'
+    status_col = 'status'
+    df_clean.loc[df_clean[survival_time_col] > max_survival_length, status_col] = 0
+    df_clean.loc[df_clean[survival_time_col] > max_survival_length, survival_time_col] = max_survival_length
+
     return df,df_clean
 
 if __name__ == '__main__':
@@ -258,7 +312,9 @@ if __name__ == '__main__':
         formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-input_csv", help="Input CSV files", type=str, required=True)
     parser.add_argument("-output_csv", help="Output CSV with preprocesed table", type=str, required=True)
-    parser.add_argument("-input_delimiter", help="Delimiter for input file", type=str, default=";")
+    parser.add_argument("-input_delimiter", help="Delimiter for input file", type=str, default=",")
+    parser.add_argument("--max_survival_length", help="Maximum consider time interval in Kaplan-meier plots", type=float,
+                        default=365*5)
 
     args = parser.parse_args()
     genes_prefix = 'gene_'
@@ -267,5 +323,5 @@ if __name__ == '__main__':
     min_number_of_cases_of_mutations = 5
     initial_df = pd.read_csv(args.input_csv,delimiter=args.input_delimiter)
     df = expand_values_for_patients(initial_df,list_of_expand_marks=duplication_symbols,patients_id_columns=patient_id_column)
-    df,df_clean = data_preprocessing(df, last_date_columns=['Date of Death','Last known f/u'], initial_date_columns=['tumor_sample_collected_date'])
+    df,df_clean = data_preprocessing(df, last_date_columns=['Date of Death','Last known f/u'], initial_date_columns=['tumor_sample_collected_date'],max_survival_length=args.max_survival_length)
     df_clean.to_csv(args.output_csv,index=False)

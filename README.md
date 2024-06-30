@@ -18,7 +18,9 @@ relation between mutations and treatment response.
 
 prepare_input_data.py - script for convertion raw data to expected data format<br>
 EDA_report.py - script for initial exploratory data analysis of survival data<br>
+table_transform.py - script for simple tables transformation<br>
 survival_analysis_initial_report.py - script for ploting kaplan-meier plots<br>
 survival_analysis_cox_model.py - script for creating cox-model and test regularization parameters <br>
+
 pipeline.sh - script for running all analysis steps<br>
 

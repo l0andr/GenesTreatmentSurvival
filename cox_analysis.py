@@ -6,6 +6,7 @@ import numpy as np
 import io
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from typing import Optional
 
 from lifelines import CoxPHFitter
 from lifelines.calibration import survival_probability_calibration
@@ -118,12 +119,85 @@ def plot_scores(metric_to_plot,scores_all,l1steps,pensteps):
     return fig
 
 
+def treeplot(df:pd.DataFrame,df2:Optional[pd.DataFrame]=None,
+             coef_col='exp(coef)',coef_col_lower='exp(coef) lower',coef_col_upper='exp(coef) upper',
+             logplot=True,
+             fig = None,axis = None,tit1="",tit2="",selected_list_of_factors=[]):
+
+    if df2 is None:
+        if fig is None:
+            fig = plt.figure()
+        if axis is None:
+            axis = plt.gca()
+        ax = [axis]
+    else:
+        fig,ax = plt.subplots(1,2,sharey=True)
+        axis=ax[0]
+
+    y = len(df.index)
+    lcol = ''
+    ucol = ''
+    interval_string = ''
+    for col in df.columns:
+        if coef_col_lower in col:
+            lcol = col
+            interval_string = col[10:]
+        if coef_col_upper in col:
+            ucol = col
+    df.sort_values(by=coef_col,inplace=True,ascending=False)
+    list_of_factors = []
+    list_of_ticks = []
+    def plot_one_factor(lb,ub,coef,y,axis,color='black'):
+        axis.plot([lb, ub], [y, y], color=color)
+        axis.plot([coef,coef], [y, y], 'o', color=color)
+        axis.plot([lb, ub], [y, y], '|', color=color)
+        axis.plot([lb, ub], [y, y], '|', color=color)
+    center_line = 1 if not logplot else 0
+    for a in ax:
+        a.vlines(center_line, 0, len(df.index), color='black', linestyles='--')
+
+    for index,row in df.iterrows():
+        if index in selected_list_of_factors:
+            factor_color='red'
+        else:
+            factor_color='black'
+        plot_one_factor(row[lcol],row[ucol],row[coef_col],y,axis,color=factor_color)
+        if df2 is not None:
+            row2 = df2[df2.index==index]
+            plot_one_factor(row2[lcol], row2[ucol], row2[coef_col], y, ax[1], color='red')
+        list_of_factors.append(index)
+        list_of_ticks.append(y)
+        y = y - 1
+    axis.set_title(tit1)
+
+    if logplot:
+        xlabel_str = "log(Hazards ratio) \n" + interval_string + 'Confidence interval'
+    else:
+        xlabel_str = "Hazards ratio \n" + interval_string + 'Confidence interval'
+    for a in ax:
+        a.set_xlabel(xlabel_str)
+        a.grid()
+
+    if df2 is not None:
+        for index, row in df2.iterrows():
+            if index not in list(df.index):
+                row2 = df2[df2.index == index]
+                plot_one_factor(row2[lcol], row2[ucol], row2[coef_col], y, ax[1], color='red')
+                list_of_factors.append(index)
+                list_of_ticks.append(y)
+                y = y - 1
+        ax[1].set_title(tit2)
+
+    plt.yticks(ticks=list_of_ticks,labels=list_of_factors)
+    plt.tight_layout()
+    return fig,axis
+
 if __name__ == '__main__':
-    pass
+
     parser = argparse.ArgumentParser(description="Perform initial survival analysis",
         formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-input_csv", help="Input CSV files", type=str, required=True)
-    parser.add_argument("--min_cases", help="Minimal number of cases of mutations", type=int, default=6)
+    parser.add_argument("--min_cases", help="Minimal number of cases of mutations", type=int, default=3)
     parser.add_argument("--genes", help="Comma separated list of genes of interest ", type=str, default="")
     parser.add_argument("--factors", help="Comma separated list of factors of interest ", type=str, default="")
     parser.add_argument("--status_col", help="Comma separated list of factors of interest ", type=str, default="status")
@@ -140,9 +214,12 @@ if __name__ == '__main__':
                         default="cox_optim_report.pdf")
     parser.add_argument("--model_report", help="Path to model report", type=str,
                         default="cox_model_report.pdf")
-
+    parser.add_argument("--univar", help="Perform univariante analysis use specified list of factors as base and vary other", type=str,
+                        default="")
     parser.add_argument("--verbose", help="Comma separated list of factors of interest ", type=int, default=2)
     parser.add_argument("--show", help="If set, plots will be shown", default=False,
+                        action='store_true')
+    parser.add_argument("--plot_outcome", help="If set, plots will be shown", default=False,
                         action='store_true')
 
     #if factors are not specified, then all factors will be used
@@ -161,12 +238,18 @@ if __name__ == '__main__':
         factors = None
     else:
         factors = args.factors.split(',')
-
+    if args.univar == "":
+        list_of_univar_factors = None
+    else:
+        if args.penalizer < 0 or args.l1ratio < 0:
+            raise RuntimeError("Penalizer and l1ratio must be set for univariante analysis")
+        list_of_univar_factors= args.univar.split(',')
     df = pd.read_csv(args.input_csv)
     patient_id_col = args.patient_id_col
     status_col = args.status_col
     survival_time_col = args.survival_time_col
     keep_columns = [status_col, survival_time_col]
+    #todo add ignore columns
     ignore_columns = ['distance_from_mean', 'outlier','disease-free-status', 'disease-free-time','patient_id','status','survival_in_days']
     genes_columns = [col for col in df.columns if col.startswith('gene_')]
     if genes is not None:
@@ -189,38 +272,67 @@ if __name__ == '__main__':
         print(f"status_col:{status_col}")
         print(f"survival_time_col:{survival_time_col}")
         print(f"patient_id_col:{patient_id_col}")
-
-    df_formodel = df[keep_columns + genes_columns + factor_columns]
-    #prepare data for model
-    df_formodel = df_formodel[df_formodel['treatment'] < 4]
-    #fill Na with np.nan
-    #df_formodel = df_formodel.fillna(np.inf)
-    #Drop column treatment
-    #df_formodel.drop(columns=['treatment'],inplace=True)
-    df_formodel = df_formodel.dropna()
+    if list_of_univar_factors is None:
+        list_of_univar_factors = []
+    df_formodel = df[list(set(keep_columns + genes_columns + factor_columns + list_of_univar_factors))]
+    #df_formodel = df_formodel.dropna()
     column_for_dropping = []
     for column in (set(df_formodel.columns) - {status_col, survival_time_col}):
-        if df_formodel[column].dtype == object:
-            df_formodel[column] = df_formodel[column].astype('category')
-            df_formodel[column] = df_formodel[column].cat.codes
-
+        #if df_formodel[column].dtype == object:
+        #    df_formodel[column] = df_formodel[column].astype('category')
+        #    df_formodel[column] = df_formodel[column].cat.codes
         if len(df_formodel[column].unique().tolist()) == 1:
             if args.verbose >= 1:
                 print(f"{column} will be dropped (variance = 0)")
             column_for_dropping.append(column)
-        if sorted(df_formodel[column].unique().tolist()) == [0,1]:
+        if df_formodel[column].dtype == int and sorted(df_formodel[column].unique().tolist()) == [0,1] :
             if args.verbose >= 1:
                 print(f"{column} will be converted to boolean")
             df_formodel[column] = df_formodel[column].astype('bool')
-        
-        if len(df_formodel[column].unique().tolist()) < 5 and not df_formodel[column].dtype == bool:
-            print(f"{column} will be converted to categorical")
-            df_formodel[column] = df_formodel[column].astype('category')
-            df_formodel[column] = df_formodel[column].cat.codes
+        elif len(df_formodel[column].unique().tolist()) <= 5 and not df_formodel[column].dtype == bool:
+            print(f"{column} will be converted to multiple columns {df_formodel[column].unique().tolist()}")
+            for val in df_formodel[column].unique().tolist():
+                if val is None or val == np.nan or val == 'nan' or pd.isna(val):
+                    continue
+                print(f"\tBinnary column {column}={val} created")
+                df_formodel[f"{column}={val}"] = df_formodel[column] == val
+                df_formodel[f'{column}={val}'] = df_formodel[f'{column}={val}'].astype('bool')
+                factor_columns.append(f"{column}={val}")
+                if column in list_of_univar_factors:
+                    list_of_univar_factors.append(f"{column}={val}")
+
+            #remove column from factor_columns
+            if column in list_of_univar_factors:
+                list_of_univar_factors.remove(column)
+
+            factor_columns.remove(column)
+            column_for_dropping.append(column)
+        elif (df_formodel[column].dtype == int or  df_formodel[column].dtype ==np.float64 or df_formodel[column].dtype == np.int) and \
+                len(df_formodel[column].unique().tolist()) > 5:
+            df_formodel[column] = df_formodel[column].fillna(df_formodel[column].median()).astype(np.float64)
+
 
     df_formodel.drop(columns=column_for_dropping, inplace=True)
     #process all columns except status_col and survival_time_col
-    df_formodel_data = convert_to_float_and_normalize(df_formodel[df_formodel.columns.difference([status_col,survival_time_col])])
+    #df_formodel_data = convert_to_float_and_normalize(df_formodel[df_formodel.columns.difference([status_col,survival_time_col])])
+    df_formodel_data = df_formodel[df_formodel.columns.difference([status_col,survival_time_col])]
+
+    for col in df_formodel_data.columns:
+        if col in ['status','survival_in_days']:
+            continue
+        if df_formodel_data[col].dtype == object:
+            df_formodel_data[col] = df_formodel_data[col].astype('category')
+            df_formodel_data[col] = df_formodel_data[col].cat.codes
+        elif df_formodel_data[col].dtype == np.datetime64:
+            df_formodel_data[col] = df_formodel_data[col].astype(np.int64) // 10 ** 9
+        elif df_formodel_data[col].dtype == np.int64:
+            df_formodel_data[col] = df_formodel_data[col].astype(np.float64)
+        elif df_formodel_data[col].dtype == bool:
+            df_formodel_data[col] = df_formodel_data[col].astype(np.float64)
+        #df_formodel_data[col] = (df_formodel_data[col] - df_formodel_data[col].mean()) / df_formodel_data[col].std()
+        df_formodel_data[col] = (df_formodel_data[col] - df_formodel_data[col].min())
+        df_formodel_data[col] = df_formodel_data[col] / df_formodel_data[col].max()
+
     df_formodel = pd.concat([df_formodel_data,df_formodel[[status_col,survival_time_col]]],axis=1)
     #list of columns with NaN values
     nan_columns = df_formodel.columns[df_formodel.isna().any()].tolist()
@@ -259,6 +371,7 @@ if __name__ == '__main__':
         for metric in ["concordance_index", "log_likelihood", "log_ratio_test", "probability_calibration","AIC"]:
             fig = plot_scores(metric, scores_all, l1ratio_steps,pen_steps)
             pp.savefig(fig)
+
         best_score = None
         best_scores = None
         best_pen = 0
@@ -292,24 +405,65 @@ if __name__ == '__main__':
         pp.close()
 
     #df_formodel.drop(columns=['drugs'], inplace=True)
+
+    if args.univar != "":
+        common_uni_factors = []
+        for cox_factor in sorted(genes_columns + factor_columns):
+            if cox_factor in list_of_univar_factors:
+                continue
+            if args.verbose > 1:
+                print(f"Univariante analysis for {cox_factor}")
+            cphu = CoxPHFitter(alpha=ALPHA, penalizer=best_pen, l1_ratio=best_l1ratio)
+            cphu.fit(df_formodel[list(set(list_of_univar_factors+[cox_factor] + keep_columns))].dropna(), duration_col=survival_time_col, event_col=status_col, show_progress=False)
+            #if args.show:
+                #cphu.plot()
+                #plt.show()
+            tbl = cphu.summary
+            common_uni_factors.append(tbl[tbl.index==cox_factor])
+        df_coomon_uni_factors = pd.concat(common_uni_factors)
+        if args.verbose > 1:
+            print(f"Univariante factors:")
+            print(df_coomon_uni_factors)
+    #preselect sagnificant factors on the base of univariant analysis:
+    if args.univar != "":
+        multi_factors = list_of_univar_factors
+        for col in df_coomon_uni_factors.columns:
+            if 'coef lower' in col:
+                lcol = col
+            if 'coef upper' in col:
+                ucol = col
+        for index,row in df_coomon_uni_factors.iterrows():
+            if np.sign(row[lcol]) == np.sign(row[ucol]):
+                multi_factors.append(index)
+        if args.verbose > 1:
+            print(f"List of factors for multifactor analysis:{multi_factors}")
+        df_formodel = df_formodel[list(set(multi_factors + keep_columns))]
+    #TODO: check that we have not NaNs in data
+
     cph = CoxPHFitter(alpha=ALPHA,penalizer=best_pen,l1_ratio=best_l1ratio)
     cph.fit(df_formodel, duration_col=survival_time_col, event_col=status_col,show_progress=False)
     score_dict = estimate_model_quality(cph, df_formodel, duration_col=survival_time_col, event_col=status_col,t0=calib_t0)
     if args.verbose > 1:
         print(f"Model scores:\n {score_dict}")
 
+    if args.verbose > 1:
+        print(f"Multivariante factors:")
+        cph.print_summary()
+    if len(list_of_univar_factors) > 0:
+        treeplot(df_coomon_uni_factors, df2=None,tit1='Univariant analysis',logplot=False,selected_list_of_factors=multi_factors)
+    if args.plot_outcome:
+        for factor in df_formodel.columns.difference([status_col,survival_time_col]):
+            cph.plot_partial_effects_on_outcome(factor, df_formodel[factor].unique().tolist())
+            plt.grid()
+            plt.title(f"Partial effect of {factor}")
 
     if args.verbose > 1:
-        cph.print_summary()
-
+        print(cph.summary)
     cph.check_assumptions(df_formodel, p_value_threshold=0.01)
 
 
     pp = PdfPages(args.model_report)
-    fig = plt.figure()
-    cph.plot()
-    plt.title(f"n ={len(df_formodel.index)}. Status:{status_col}, survival_time:{survival_time_col}")
-    plt.tight_layout()
+    fig,axis = treeplot(cph.summary,tit1=f"n={len(df_formodel.index)}. Status:{status_col}, survival_time:{survival_time_col}",logplot=False)
     pp.savefig(fig)
     pp.close()
     if args.show:

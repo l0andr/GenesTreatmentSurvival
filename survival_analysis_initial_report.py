@@ -11,6 +11,7 @@ from sksurv.preprocessing import OneHotEncoder
 from lifelines.statistics import logrank_test,multivariate_logrank_test
 from lifelines import KaplanMeierFitter
 from lifelines.utils import median_survival_times
+from lifelines.plotting import add_at_risk_counts
 from sksurv.metrics import concordance_index_censored, concordance_index_ipcw
 
 from sklearn import set_config
@@ -69,6 +70,39 @@ def plot_kaplan_meier(df_pu:pd.DataFrame,column_name:str,
     plt.ylabel("est. probability of survival $\hat{S}(t)$")
     plt.xlabel(f"time $t$ ({survival_in_days})")
     plt.legend(loc="best")
+    return fig
+
+def plot_kaplan_meier2(df_pu:pd.DataFrame,column_name:str,
+                      status_column:str="Status",survival_in_days:str="Survival_in_days",plot_pvalues=True):
+
+
+    diff_values = df_pu[column_name].dropna().unique().tolist()
+
+    fig, ax = plt.subplots(figsize=(18, 8),nrows=1,ncols=1,sharex=True)
+    if not isinstance(ax,np.ndarray):
+        ax = [ax]
+    i = 0
+    kmfs = []
+    p_values = {}
+    at_risk_lables = []
+    for s in diff_values:
+        mask_treat = df_pu[column_name] == s
+        p_values[s] = logrank_test(df_pu[status_column][mask_treat], df_pu[status_column][~mask_treat],
+                                   df_pu[survival_in_days][mask_treat], df_pu[survival_in_days][~mask_treat]).p_value
+        i+=1
+        ix = df_pu[column_name] == s
+        kmf = KaplanMeierFitter()
+        kmf.fit(df_pu[survival_in_days][ix],df_pu[status_column][ix], label=column_name+" = "+str(s) + f" p-value = {p_values[s]:.5f} " )
+        kmf.plot_survival_function(ax=ax[0],ci_legend = True, at_risk_counts = False)
+        at_risk_lables.append(f"{column_name} = {s}")
+        kmfs.append(kmf)
+    add_at_risk_counts(*kmfs,labels=at_risk_lables, ax=ax[0])
+
+    ax[0].set_ylabel("est. probability of survival $\hat{S}(t)$")
+    ax[0].set_xlabel(f"time $t$ (days)")
+    ax[0].set_title(f"Kaplan-Meier survival estimates [{survival_in_days}]")
+    plt.tight_layout()
+    #plt.legend(loc="best")
     return fig
 
 def expand_values_for_patients(initial_df:pd.DataFrame,list_of_expand_marks:List[str],patients_id_columns:str):
@@ -147,18 +181,21 @@ if __name__ == '__main__':
     pd.set_option('display.max_columns', None)
     #sort non_zero_counts series by values
     non_zero_counts = non_zero_counts.sort_values(ascending=False)
+    #filter out genes with less than min_number_of_cases_of_mutations
+    non_zero_counts = non_zero_counts[non_zero_counts > min_number_of_cases_of_mutations]
+
     #plot non_zero_counts series as bar plot
 
     pp = PdfPages(output_pdf)
 
     #plt.show()
     fig, ax = plt.subplots(figsize=(18, 8))
-    ax.bar(non_zero_counts.index, non_zero_counts.values, color='b', label='All genes')
+    ax.bar(non_zero_counts.index, non_zero_counts.values, color='k', label='All genes')
     #select genes of interest from non_zero_counts series
     non_zero_counts_genes_of_interest = non_zero_counts[non_zero_counts.index.str.contains('|'.join(genes_of_interest))]
     if len(non_zero_counts_genes_of_interest) > 0:
         ax.bar(non_zero_counts_genes_of_interest.index, non_zero_counts_genes_of_interest.values,
-               color='r', label='Genes of interets')
+               color='k', label='Genes of interets')
     ax.set_ylabel('Number of patients that have mutation in gene')
     ax.set_title('Number of present mutation in genes for whole dataset')
     ax.set_xticks(range(len(non_zero_counts)))
@@ -169,7 +206,7 @@ if __name__ == '__main__':
         #remove "gene_" prefix from gene name
         gene_name = non_zero_counts.index[i].replace(genes_prefix,'')
         ax.text(i, v + 0.5, str(v), ha='center', va='bottom', fontweight='bold')
-    ax.legend()
+    #ax.legend()
     ax.grid()
     pp.savefig(fig)
 
@@ -179,45 +216,13 @@ if __name__ == '__main__':
 
     df_clean = df_clean[df_clean['outlier'] == False]
     df_clean['status'] = df_clean['status'].astype(bool)
-    '''
-    data_y = df_clean[['status', 'survival_in_days']].to_records(index=False)
-    data_x = df_clean.drop(columns=['survival_in_days','status',"disease-free-status","disease-free-time",
-                                    'patient_id','initial_date','initial_report_date','min_date','last_date','death_date'
-                                    ,'treatment_date','recurrence_date','outlier'])
-    data_x.fillna(0,inplace=True)
-    data_x_norm = dataframe_normalization(data_x)
-    Xt = OneHotEncoder().fit_transform(data_x_norm.astype('category'))
-    set_config(display="text")  # displays text representation of estimators
-
-    estimator = CoxPHSurvivalAnalysis(alpha=0.01, ties='breslow', n_iter=100, tol=1e-09, verbose=0)
-    estimator.fit(data_x_norm, data_y)
-
-    data_y = df_clean[['status', 'survival_in_days']].to_records(index=False)
-    scores = fit_and_score_features(data_x_norm.values, data_y)
-    phazards_surv = pd.Series(scores, index=data_x_norm.columns).sort_values(ascending=False)
-
-    data_y = df_clean[["disease-free-status","disease-free-time"]].to_records(index=False)
-    scores = fit_and_score_features(data_x_norm.values, data_y)
-
-    phazards_dfree = pd.Series(scores, index=data_x_norm.columns).sort_values(ascending=False)
-
-    #show columns with NaN values in df_clean
-    print(df_clean.columns[df_clean.isna().any()].tolist())
-    #show rows with NaN values in df_clean
-    print(df_clean[df_clean.isna().any(axis=1)])
-
-    df_clean['patients'] = 'ALL'
-    fig = plot_kaplan_meier(df_clean, column_name='patients', status_column='status',
-                            survival_in_days='survival_in_days')
-    pp.savefig(fig)
-    '''
     for gi in genes_of_interest:
         gene_column_name = genes_prefix + gi
         if gene_column_name in df_clean.columns:
 
-            fig = plot_kaplan_meier(df_clean,column_name=gene_column_name,status_column='status',survival_in_days='survival_in_days')
+            fig = plot_kaplan_meier2(df_clean,column_name=gene_column_name,status_column='status',survival_in_days='survival_in_days')
             pp.savefig(fig)
-            fig = plot_kaplan_meier(df_clean, column_name=gene_column_name, status_column='disease-free-status',survival_in_days='disease-free-time')
+            fig = plot_kaplan_meier2(df_clean, column_name=gene_column_name, status_column='disease-free-status',survival_in_days='disease-free-time')
             pp.savefig(fig)
     for fi in factors_of_interst:
         if fi in df_clean.columns:
@@ -225,9 +230,9 @@ if __name__ == '__main__':
                                               survival_in_days='survival_in_days')
             pvals = compute_survival_p_values(df_clean, column_name=fi, status_column='disease-free-status',
                                               survival_in_days='disease-free-time')
-            fig = plot_kaplan_meier(df_clean,column_name=fi,status_column='status',survival_in_days='survival_in_days')
+            fig = plot_kaplan_meier2(df_clean,column_name=fi,status_column='status',survival_in_days='survival_in_days')
             pp.savefig(fig)
-            fig = plot_kaplan_meier(df_clean, column_name=fi, status_column='disease-free-status',survival_in_days='disease-free-time')
+            fig = plot_kaplan_meier2(df_clean, column_name=fi, status_column='disease-free-status',survival_in_days='disease-free-time')
             pp.savefig(fig)
     #drop df_clean rows where df_clean['treatment'] == 'None'
     df_clean = df_clean[df_clean['treatment'] != np.nan]
@@ -236,127 +241,6 @@ if __name__ == '__main__':
     genes_treatment_analysis = {'factor': [],
                        'pval_survival': [], 'pval_disease_free': [],
                        'median_survival': [], 'median_disease_free': []}
-    '''
-    for gene in  genes_treatment:
-        for unique_treatment in df_clean['treatment'].dropna().unique():
-            factor_name = 'treatment_' + str(unique_treatment)+"_"+gene
-            df_clean[factor_name] = df_clean['treatment_'+str(unique_treatment)] & df_clean[genes_prefix+gene]
-            #calculate number of True and False values in df_clean['treatment_' + str(unique_treatment)+"_"+gene]
-            skip_factor = False
-            for vc in df_clean[factor_name].value_counts():
-                if vc < 4:
-                    skip_factor = True
-                    break
-            if skip_factor:
-                continue
-            df_sub_sample = df_clean[df_clean['treatment'] == unique_treatment]
-            fig = plot_kaplan_meier(df_sub_sample, column_name='treatment_' + str(unique_treatment)+"_"+gene, status_column='status',
-                                    survival_in_days='survival_in_days')
-            fig.suptitle(factor_name)
-            pp.savefig(fig)
-            fig = plot_kaplan_meier(df_sub_sample, column_name='treatment_' + str(unique_treatment)+"_"+gene, status_column='disease-free-status',
-                                    survival_in_days='disease-free-time')
-            fig.suptitle(factor_name)
-            pp.savefig(fig)
-            pvals_surv = compute_survival_p_values(df_sub_sample, column_name=factor_name, status_column='status',
-                                                   survival_in_days='survival_in_days')
-            pvals_dfree = compute_survival_p_values(df_sub_sample, column_name=factor_name, status_column='disease-free-status',
-                                                    survival_in_days='disease-free-time')
-            mst_surv = compute_median_survival_time(df_sub_sample, column_name=factor_name, status_column='status',
-                                               survival_in_days='survival_in_days')
-            mst_dfree = compute_median_survival_time(df_sub_sample, column_name=factor_name, status_column='disease-free-status',
-                                               survival_in_days='disease-free-time')
-            genes_treatment_analysis['factor'].append(factor_name)
-            genes_treatment_analysis['pval_survival'].append(min(pvals_surv.values()))
-            genes_treatment_analysis['pval_disease_free'].append(min(pvals_dfree.values()))
-            genes_treatment_analysis['median_survival'].append(str(mst_surv))
-            genes_treatment_analysis['median_disease_free'].append(str(mst_dfree))
-    results_table = pd.DataFrame(genes_treatment_analysis)
-    results_table.to_csv('treatment_factor_importance.csv')
-    genes_treatment_analysis2 = {'factor': [],
-                                'pval_survival': [], 'pval_disease_free': [],
-                                'median_survival': [], 'median_disease_free': []}
-    for gene_status in [1,0]:
-        for gene in genes_treatment:
-                df_sub_sample = df_clean[df_clean[genes_prefix+gene] == gene_status]
-                if gene_status:
-                    factor_name = "with_mutation_in_"+gene
-                else:
-                    factor_name = "without_mutation_in_"+gene
-
-                fig = plot_kaplan_meier(df_clean[df_clean[genes_prefix+gene] == gene_status],
-                                        column_name='treatment',
-                                        status_column='status',
-                                        survival_in_days='survival_in_days')
-                if gene_status:
-                    fig.suptitle(f"Treatments for patients with mutation in {gene}")
-                else:
-                    fig.suptitle(f"Treatments for patients WITHOUT mutation in {gene}")
-                pp.savefig(fig)
-                fig = plot_kaplan_meier(df_clean[df_clean[genes_prefix+gene] == gene_status],
-                                        column_name='treatment',
-                                        status_column='disease-free-status',
-                                        survival_in_days='disease-free-time')
-                if gene_status:
-                    fig.suptitle(f"Treatments for patients with mutation in {gene}")
-                else:
-                    fig.suptitle(f"Treatments for patients WITHOUT mutation in {gene}")
-                pp.savefig(fig)
-
-                pvals_surv = compute_survival_p_values(df_sub_sample, column_name='treatment', status_column='status',
-                                                       survival_in_days='survival_in_days')
-                pvals_dfree = compute_survival_p_values(df_sub_sample, column_name='treatment',
-                                                        status_column='disease-free-status',
-                                                        survival_in_days='disease-free-time')
-                mst_surv = compute_median_survival_time(df_sub_sample, column_name='treatment', status_column='status',
-                                                        survival_in_days='survival_in_days')
-                mst_dfree = compute_median_survival_time(df_sub_sample, column_name='treatment',
-                                                         status_column='disease-free-status',
-                                                         survival_in_days='disease-free-time')
-                genes_treatment_analysis2['factor'].append(factor_name)
-                genes_treatment_analysis2['pval_survival'].append(min(pvals_surv.values()))
-                genes_treatment_analysis2['pval_disease_free'].append(min(pvals_dfree.values()))
-                genes_treatment_analysis2['median_survival'].append(str(mst_surv))
-                genes_treatment_analysis2['median_disease_free'].append(str(mst_dfree))
-    results_table = pd.DataFrame(genes_treatment_analysis2)
-    results_table.to_csv('treatment_factor_importance2.csv')
-    '''
     pp.close()
-    '''
-    factor_analysis = {'factor':[],
-                       'pval_survival':[],'pval_disease_free':[],
-                       'median_survival':[],'median_disease_free':[],
-                       'proportional_hazard_survival':[],'proportional_hazard_disease_free':[]}
-
-    data_x.drop(columns=['age'],inplace=True)
-    for factor in data_x.columns:
-        if factor in df_clean.columns:
-            pvals_surv = compute_survival_p_values(df_clean, column_name=factor, status_column='status',
-                                              survival_in_days='survival_in_days')
-            pvals_dfree = compute_survival_p_values(df_clean, column_name=factor, status_column='disease-free-status',
-                                              survival_in_days='disease-free-time')
-            factor_analysis['factor'].append(factor)
-            factor_analysis['pval_survival'].append(min(pvals_surv.values()))
-            factor_analysis['pval_disease_free'].append(min(pvals_dfree.values()))
-
-            if factor in phazards_surv:
-                factor_analysis['proportional_hazard_survival'].append(phazards_surv[factor])
-            else:
-                factor_analysis['proportional_hazard_survival'].append(np.nan)
-            if factor in phazards_dfree:
-                factor_analysis['proportional_hazard_disease_free'].append(phazards_dfree[factor])
-            else:
-                factor_analysis['proportional_disease_free'].append(np.nan)
-            mst = compute_median_survival_time(df_clean, column_name=factor, status_column='status',
-                                               survival_in_days='survival_in_days')
-            factor_analysis['median_survival'].append(str(mst))
-            mst = compute_median_survival_time(df_clean, column_name=factor, status_column='disease-free-status',
-                                              survival_in_days='disease-free-time')
-            factor_analysis['median_disease_free'].append(str(mst))
-
-    results_table = pd.DataFrame(factor_analysis)
-    results_table.to_csv('factor_importance.csv')
-    
-    #print(results_table)
-    #plt.show()
-    '''
+    if args.show:
+        plt.show()
