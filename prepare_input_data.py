@@ -266,6 +266,7 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
                       "PDL1 Expression":"pdl1",
                       "PDL-1 Category": "pdl1_category",
                       "Smoking  pack-years": "smoking_packs",
+                      "accession_number":"accession_number",
                       "tmb_value":"tmb_value",
                       "msi_status":"msi_status",
                       "tmb_percentile":"tmb_percentile",

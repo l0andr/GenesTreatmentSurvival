@@ -463,7 +463,8 @@ if __name__ == '__main__':
 
 
     pp = PdfPages(args.model_report)
-    fig,axis = treeplot(cph.summary,tit1=f"n={len(df_formodel.index)}. Status:{status_col}, survival_time:{survival_time_col}",logplot=False)
+    #TODO add concordance index to title of the plot
+    fig,axis = treeplot(cph.summary,tit1=f"n={len(df_formodel.index)}. Cox model concordance index: {cph.concordance_index_:.4f}",logplot=False)
     pp.savefig(fig)
     pp.close()
     if args.show:

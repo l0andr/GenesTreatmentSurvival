@@ -116,7 +116,7 @@ def plot_kaplan_meier(df_pu: pd.DataFrame, column_name: str,
 
         ax[0].set_ylabel("est. probability of survival $\hat{S}(t)$")
         ax[0].set_xlabel(f"time $t$ (days)")
-        ax[0].set_title(f"Kaplan-Meier survival estimates [{survival_in_days}] p-value={p_value_multivariate:.5f}")
+        ax[0].set_title(f"Kaplan-Meier survival estimates [{survival_in_days}] ")
         plt.tight_layout()
         return fig
 

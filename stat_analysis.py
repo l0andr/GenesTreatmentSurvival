@@ -206,7 +206,7 @@ if __name__ == '__main__':
 
             new_row_tdf = {"tnum": i, "treatment_time": d[i - 1], "response": resp, "treatment_type": treat,
                            "status": treat_status, "disease_free_time": dft,"patient_id":row[1]['patient_id'],
-                           "cancer_stage":row[1]['cancer_stage'], "cancer_type":row[1]['cancer_type'],
+                           "anatomic_stage":row[1]['anatomic_stage'], "cancer_type":row[1]['cancer_type'],
                            "smoking":row[1]['smoking'],"alcohol":row[1]['alcohol'],"drugs":row[1]['drugs'],
                            "age_level":row[1]['age_level'], "number_of_mutation":number_of_mutation,"sex": row[1]['sex'],
                            "p16":row[1]['p16'],'race':row[1]['race'],'patient_id':row[1]['patient_id'],'age':row[1]['age']}
@@ -250,7 +250,7 @@ if __name__ == '__main__':
     plt.legend(custom_lines, [line.get_label() for line in custom_lines])
 
 
-    plt.show()
+    #plt.show()
     plt.figure()
     for i in range(5):
         plt.bar([1+i/10,2+i/10,3+i/10],treatment_type_attempts[i],label=f'Attempt {i+1}',width=0.1)
@@ -438,3 +438,4 @@ if __name__ == '__main__':
         therapy_lables = ['any', 'Chemo', 'Imuno', 'Radio/surgery']
 
         plt.title(f'Fisher tests of relation between mutations and response for {therapy_lables[int(therapy)]} therapy')
+    plt.show()

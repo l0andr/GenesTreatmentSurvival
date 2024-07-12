@@ -19,11 +19,26 @@ if __name__ == '__main__':
     input_delimiter = args.input_delimiter
     df = pd.read_csv(input_csv, delimiter=input_delimiter)
     treatment_time_columns = df.filter(regex=args.treatment_time_prefix).columns
+
+    def fix_format(l):
+        lout=[]
+        for x in l:
+            try:
+                lout.append(int(x))
+            except ValueError:
+                if x == 'none' or np.isnan(x):
+                    lout.append(None)
+                else:
+                    print(f"Bad element in list {l} {x}")
+        return lout
     df['treatment_time'] = df[treatment_time_columns].values.tolist()
+    df['treatment_time'] = df['treatment_time'].apply(fix_format)
     treatment_type_columns = df.filter(regex=args.treatment_type_prefix).columns
     df['treatment_type'] = df[treatment_type_columns].values.tolist()
+    df['treatment_type'] = df['treatment_type'].apply(fix_format)
     response_columns = df.filter(regex=args.response_prefix).columns
     df['response_'] = df[response_columns].values.tolist()
+    df['response_'] = df['response_'].apply(fix_format)
 
     for i in range(len(df['treatment_type'])):
         end_index = None
@@ -41,6 +56,9 @@ if __name__ == '__main__':
     list_of_lost_repsonse_treatment = {}
     for row in df.iterrows():
         d = row[1]['treatment_time']  # list of times of treatment
+        d = [x for x in d if x is not None]
+        if isinstance(d, str):
+            print(f'Treatment time is string {d}')
         if any([x < -5000 for x in d]):
             list_of_lost_times[row[1]['patient_id']] = -1
             continue
@@ -75,7 +93,7 @@ if __name__ == '__main__':
                 treat_status = int(row[1]['status'])
             new_row_tdf = {"tnum": i, "treatment_time": d[i - 1], "response": resp, "treatment_type": treat,
                            "status": treat_status, "disease_free_time": dft, "patient_id": row[1]['patient_id'],
-                           "cancer_stage": row[1]['cancer_stage'], "cancer_type": row[1]['cancer_type'],
+                           "anatomic_stage": row[1]['anatomic_stage'], "cancer_type": row[1]['cancer_type'],
                            "smoking": row[1]['smoking'], "alcohol": row[1]['alcohol'], "drugs": row[1]['drugs'],
                            "age_level": row[1]['age_level'], "number_of_mutation": number_of_mutation,
                            "sex": row[1]['sex'],

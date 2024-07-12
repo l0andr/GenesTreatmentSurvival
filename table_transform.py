@@ -12,13 +12,37 @@ import argparse
 if __name__ == '__main__':
     argparse = argparse.ArgumentParser()
     argparse.add_argument('--input', type=str, required=True, help='input csv file')
+    argparse.add_argument('--input2', type=str, required=False, help='second input csv file to combine with first one',
+                        default="")
+    argparse.add_argument('--cohort_labels', type=str, required=False, help='Labels for different dataframe in join one',default="")
     argparse.add_argument('--output', type=str, required=True, help='output csv file')
     argparse.add_argument('--delete_columns', type=str, required=False, help='comma separated list of columns to delete')
     argparse.add_argument('--filter_column', type=str, required=False, help='column name to filter')
     argparse.add_argument('--filter_values', type=str, required=False, help='comma separated list of values to filter')
     args = argparse.parse_args()
-
+    if args.cohort_labels:
+        if len(args.cohort_labels.split(',')) != 2:
+            raise Exception('cohort_labels should be comma separated list of two labels')
     df = pd.read_csv(args.input)
+    if args.input2:
+        df2 = pd.read_csv(args.input2)
+        # create set of columns common for both datasets
+        common_columns = set(df.columns).intersection(set(df2.columns))
+        print(f"Will join two input dataset. Common columns is {[common_columns]} ")
+        #set of columns that aree only in df
+        only_df_columns = set(df.columns).difference(set(df2.columns))
+        #set of columns that are only in df2
+        only_df2_columns = set(df2.columns).difference(set(df.columns))
+        #drop columns that are only in one dataset
+        df = df.drop(columns=only_df_columns)
+        df2 = df2.drop(columns=only_df2_columns)
+        if args.cohort_labels:
+            df['cohort'] = args.cohort_labels.split(',')[0]
+            df2['cohort'] = args.cohort_labels.split(',')[1]
+        #concat two datasets
+        df = pd.concat([df,df2],axis=0)
+
+
     if args.delete_columns:
         df = df.drop(columns=args.delete_columns.split(','))
     if args.filter_column and args.filter_values:

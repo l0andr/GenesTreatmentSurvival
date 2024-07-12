@@ -19,7 +19,7 @@ if __name__ == '__main__':
     df_genes = pd.read_csv(args.input_genes_csv)
     diagnosis = "Head & Neck Squamous Cell Carcinoma"
     colnames = ['bcr_patient_barcode', 'histologic_diagnosis', 'anatomic_organ_subdivision', 'gender',
-       'birth_days_to', 'race', 'margin_status', 'vital_status', 'last_contact_days_to', 'race',
+       'birth_days_to', 'margin_status', 'vital_status', 'last_contact_days_to', 'race',
        'death_days_to', 'hpv_status_p16', 'tobacco_smoking_history_indicator',
         'alcohol_history_documented','alcohol_consumption_frequency',
        'age_at_initial_pathologic_diagnosis.x', 'clinical_M', 'clinical_N',
@@ -32,7 +32,7 @@ if __name__ == '__main__':
     df_filtered = df_filtered.drop(columns=['histologic_diagnosis'])
     #fill hpv_16_status with 0 if nan
     df_filtered['p16'] = df_filtered['hpv_status_p16'].fillna(False)
-    df_filtered['p16'] = df_filtered['p16'].apply(lambda x: True if x=='Positive' else False)
+    df_filtered['p16'] = df_filtered['p16'].apply(lambda x: 'Y' if x=='Positive' else 'N')
 
 
     #fill alcohol_consumption_frequency with 0 if nan
@@ -45,21 +45,33 @@ if __name__ == '__main__':
     df_filtered['status'] = df_filtered['vital_status'].apply(lambda x : True if x == 'Dead' else False)
 
     df_filtered.rename(columns={'gender':'sex'},inplace=True)
-
+    #make all laters in values to lower with Upper first letter
+    df_filtered['sex'] = df_filtered['sex'].apply(lambda x: x.lower().capitalize())
     #df_filtered = df_filtered.dropna(axis=0)
-    diagnosis_groups_dict = {'oral cavity':['Oral Tongue','Floor of mouth','Buccal Mucosa',
+    diagnosis_groups_dict = {'Oral Cavity':['Oral Tongue','Floor of mouth','Buccal Mucosa',
                                             'Alveolar Ridge','Hard Palate','Oral Cavity','Lip'],
-                             'oropharynx':['Base of tongue','Tonsil','Oropharynx'],
-                             'hypopharynx':['Hypopharynx'],
-                             'larynx':['Larynx']}
+                             'Oropharynx':['Base of tongue','Tonsil','Oropharynx'],
+                             'Hypopharynx':['Hypopharynx'],
+                             'Larynx':['Larynx']}
     def diagnosis_group(x):
         for key,value in diagnosis_groups_dict.items():
             if x in value:
                 return key
 
-    df_filtered['diagnosis'] = df_filtered['anatomic_organ_subdivision'].apply(lambda x:diagnosis_group(x))
-    df_filtered['smoking'] = df_filtered['tobacco_smoking_history_indicator'].apply(lambda x:True if x == 'smoker' else False)
-    df_filtered['alcohol'] = df_filtered['alcohol_consumption_frequency'].apply(lambda x:True if x > 0 else False)
+    def race_group(x):
+        if x == 'WHITE':
+            return 'white'
+        elif x == 'BLACK OR AFRICAN AMERICAN':
+            return 'black'
+        elif x == "" or x is None or pd.isnull(x):
+            return 'Unknown'
+        else:
+            return 'other'
+
+    df_filtered['race'] = df_filtered['race'].apply(lambda x:race_group(x))
+    df_filtered['cancer_type'] = df_filtered['anatomic_organ_subdivision'].apply(lambda x:diagnosis_group(x))
+    df_filtered['smoking'] = df_filtered['tobacco_smoking_history_indicator'].apply(lambda x:1 if x == 'smoker' else 0)
+    df_filtered['alcohol'] = df_filtered['alcohol_consumption_frequency'].apply(lambda x:1 if x > 0 else 0)
     for index,row in df_filtered.iterrows():
         if row['alcohol_history_documented'] == 'NO':
             df_filtered.loc[index,'alcohol'] = np.nan
@@ -83,7 +95,7 @@ if __name__ == '__main__':
                    'tobacco_smoking_history_indicator' ,'alcohol_history_documented',
                    'alcohol_consumption_frequency', 'age_at_initial_pathologic_diagnosis.x',
                    'days_to_initial_pathologic_diagnosis','hpv_status_p16','vital_status','death_days_to',
-                   'clinical_stage.x','clinical_M','clinical_N','clinical_T','alcohol']
+                   'clinical_stage.x','clinical_M','clinical_N','clinical_T']
     #drop rows where survival_in_days <=0, convert survival days to int before
     def toint(x):
         try:
@@ -94,7 +106,7 @@ if __name__ == '__main__':
     df_filtered = df_filtered[df_filtered['survival_in_days'] > 0]
     df_filtered.drop(columns=col_to_drop,inplace=True)
     print(df_filtered.isnull().sum())
-    df_filtered = df_filtered.dropna(axis=0)
+    #df_filtered = df_filtered.dropna(axis=0)
 
     #drop rows with missing values
 
