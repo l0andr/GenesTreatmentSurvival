@@ -24,9 +24,11 @@ if __name__ == '__main__':
         'alcohol_history_documented','alcohol_consumption_frequency',
        'age_at_initial_pathologic_diagnosis.x', 'clinical_M', 'clinical_N',
        'clinical_T', 'clinical_stage.x',
-       'days_to_initial_pathologic_diagnosis' ]
+       'days_to_initial_pathologic_diagnosis','ajcc_pathologic_tumor_stage','lymphovascular_invasion',
+            'perineural_invasion']
     list_of_genes = args.list_of_genes.split(',')
-    df_filtered = df[df['histologic_diagnosis'] == diagnosis]
+    df_filtered = df
+    #df_filtered = df[df['histologic_diagnosis'] == diagnosis]
     #drop column histological_diagnosis
     df_filtered = df_filtered[colnames]
     df_filtered = df_filtered.drop(columns=['histologic_diagnosis'])
@@ -53,10 +55,16 @@ if __name__ == '__main__':
                              'Oropharynx':['Base of tongue','Tonsil','Oropharynx'],
                              'Hypopharynx':['Hypopharynx'],
                              'Larynx':['Larynx']}
-    def diagnosis_group(x):
-        for key,value in diagnosis_groups_dict.items():
+
+    stage_groups_dict = {1: ['Stage I'],2:['Stage II'],3: ['Stage III'],4: ['Stage IV','Stage IVA','Stage IVB','Stage IVC']}
+    vi_dict = {'Y': ['YES'],'N':['NO'],'Unknown' :['NA']}
+
+
+    def apply_group_rename(x,groups_dict):
+        for key,value in groups_dict.items():
             if x in value:
                 return key
+
 
     def race_group(x):
         if x == 'WHITE':
@@ -69,7 +77,10 @@ if __name__ == '__main__':
             return 'other'
 
     df_filtered['race'] = df_filtered['race'].apply(lambda x:race_group(x))
-    df_filtered['cancer_type'] = df_filtered['anatomic_organ_subdivision'].apply(lambda x:diagnosis_group(x))
+    df_filtered['cancer_type'] = df_filtered['anatomic_organ_subdivision'].apply(lambda x:apply_group_rename(x,diagnosis_groups_dict))
+    df_filtered['anatomic_stage'] = df_filtered['ajcc_pathologic_tumor_stage'].apply(lambda x:apply_group_rename(x,stage_groups_dict))
+    df_filtered['lvi'] = df_filtered['lymphovascular_invasion'].apply(lambda x:apply_group_rename(x,vi_dict))
+    df_filtered['pni'] = df_filtered['perineural_invasion'].apply(lambda x:apply_group_rename(x,vi_dict))
     df_filtered['smoking'] = df_filtered['tobacco_smoking_history_indicator'].apply(lambda x:1 if x == 'smoker' else 0)
     df_filtered['alcohol'] = df_filtered['alcohol_consumption_frequency'].apply(lambda x:1 if x > 0 else 0)
     for index,row in df_filtered.iterrows():
@@ -95,7 +106,8 @@ if __name__ == '__main__':
                    'tobacco_smoking_history_indicator' ,'alcohol_history_documented',
                    'alcohol_consumption_frequency', 'age_at_initial_pathologic_diagnosis.x',
                    'days_to_initial_pathologic_diagnosis','hpv_status_p16','vital_status','death_days_to',
-                   'clinical_stage.x','clinical_M','clinical_N','clinical_T']
+                   'clinical_stage.x','clinical_M','clinical_N','clinical_T','ajcc_pathologic_tumor_stage',
+                   'lymphovascular_invasion','perineural_invasion']
     #drop rows where survival_in_days <=0, convert survival days to int before
     def toint(x):
         try:

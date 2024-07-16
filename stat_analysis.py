@@ -342,8 +342,10 @@ if __name__ == '__main__':
     tdf['response'] = tdf['response'].fillna(2)
     tdf['binary_response'] = tdf.apply(lambda x: 1 if x['response'] < 2.0 or (x['response'] == 2.0 and x['disease_free_time'] < 180) else 0, axis=1)
 
-
-    tdf.to_csv('tdf.csv',index=False)
+    if not os.path.exists('tdf.csv'):
+        tdf.to_csv('tdf.csv',index=False)
+    else:
+        tdf = pd.read_csv('tdf.csv')
 
     factors = [] # ['response', 'treatment_type','tnum', 'cancer_stage', 'cancer_type', 'smoking', 'alcohol', 'drugs', 'age_level','p16','race']
     for f in factors:
@@ -390,7 +392,8 @@ if __name__ == '__main__':
         p_value_threshold = 0.1
         p_value_threshold2 = 0.05
 
-
+        table_data = []
+        raw_lables = []
         for gene_name in tdf_good_response.columns:
             good_response_gene_true[gene_name] = tdf_good_response[gene_name].sum()
             good_response_gene_false[gene_name] = len(tdf_good_response) - good_response_gene_true[gene_name]
@@ -403,7 +406,9 @@ if __name__ == '__main__':
             oddsratio, pvalue = fisher_exact(ftable)
             fisher_results[gene_name] = (oddsratio,pvalue)
             if pvalue < p_value_threshold:
-                print(f"Therapy {therapy} gene {gene_name} oddsratio {oddsratio:.4f} pvalue {pvalue:.4f} ")
+                print(f"Therapy {therapy} gene {gene_name} oddsratio {oddsratio:.4f} pvalue {pvalue:.4f} [TP TN FP FN]:{ftable}")
+                raw_lables.append(gene_name)
+                table_data.append([ftable[0][0],ftable[0][1],ftable[1][0],ftable[1][1], oddsratio,pvalue])
 
         #plot fisher results as scatter plot
         fig,ax = plt.subplots()
@@ -422,6 +427,12 @@ if __name__ == '__main__':
         significant = pd.DataFrame({'log2(OddsRatio)':np.log2(oddsratio),'-log10(p-value)':-np.log10(pvalue),'name':genes},index=genes)
         significant = significant[significant['-log10(p-value)'] > -np.log10(p_value_threshold)]
         plt.scatter(significant['log2(OddsRatio)'], significant['-log10(p-value)'], color='red')
+        if len(table_data) > 0:
+            the_table = plt.table(cellText=table_data,
+                              rowLabels=raw_lables,
+                              colLabels=['TP','FP','TN','FN','Odds ratio','p-value'],
+                              loc='left')
+            the_table.auto_set_font_size(False)
         #add gene names to the plot
         for i, txt in enumerate(significant.index):
             ax.annotate("  "+txt, (significant['log2(OddsRatio)'][i], significant['-log10(p-value)'][i]),rotation=30*int(i) % 360,fontsize=8)
@@ -438,4 +449,5 @@ if __name__ == '__main__':
         therapy_lables = ['any', 'Chemo', 'Imuno', 'Radio/surgery']
 
         plt.title(f'Fisher tests of relation between mutations and response for {therapy_lables[int(therapy)]} therapy')
+        plt.tight_layout()
     plt.show()

@@ -84,13 +84,12 @@ if __name__ == '__main__':
                     list_of_lost_repsonse_treatment[row[1]['patient_id']] = -2 * 10 - (i - 1)
             dft = d[i] - d[i - 1]
             number_of_mutation = row[1].filter(regex='gene_').sum()
-            if i < len(d):
-                if row[1]['treatment_type'][i] is not None and not math.isnan(row[1]['treatment_type'][i]):
-                    treat_status = 1
-                else:
-                    treat_status = int(row[1]['status'])
-            else:
-                treat_status = int(row[1]['status'])
+            #drop all NaN values from d
+
+            #if i < len(d) and d[i] is not None and not math.isnan(d[i]):
+            #    treat_status = 1
+            #else:
+            treat_status = int(row[1]['status'])
             new_row_tdf = {"tnum": i, "treatment_time": d[i - 1], "response": resp, "treatment_type": treat,
                            "status": treat_status, "disease_free_time": dft, "patient_id": row[1]['patient_id'],
                            "anatomic_stage": row[1]['anatomic_stage'], "cancer_type": row[1]['cancer_type'],
@@ -124,5 +123,10 @@ if __name__ == '__main__':
     tdf['response'] = tdf['response'].fillna(2)
     tdf['binary_response'] = tdf.apply(
         lambda x: 1 if x['response'] < 2.0 or (x['response'] == 2.0 and x['disease_free_time'] < 180) else 0, axis=1)
+    #in group by patient_id set status to 0 for all tnum < max(tnum) for this patient_id
+    tdf['maxtnum'] = tdf.groupby('patient_id')['tnum'].transform('max')
+    tdf['status'] = tdf.apply(lambda x: 0 if x['tnum'] < x['maxtnum'] else x['status'], axis=1)
+
+
 
     tdf.to_csv(args.output_csv, index=False)

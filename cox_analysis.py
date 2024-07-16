@@ -152,6 +152,11 @@ def treeplot(df:pd.DataFrame,df2:Optional[pd.DataFrame]=None,
         axis.plot([coef,coef], [y, y], 'o', color=color)
         axis.plot([lb, ub], [y, y], '|', color=color)
         axis.plot([lb, ub], [y, y], '|', color=color)
+        if np.sign(lb) == np.sign(ub):
+            if np.sign(lb) < 0:
+                axis.plot([lb], [y+0.4], '*', color=color)
+            if np.sign(lb) > 0:
+                axis.plot([ub], [y+0.4], '*', color=color)
     center_line = 1 if not logplot else 0
     for a in ax:
         a.vlines(center_line, 0, len(df.index), color='black', linestyles='--')
@@ -161,21 +166,23 @@ def treeplot(df:pd.DataFrame,df2:Optional[pd.DataFrame]=None,
             factor_color='red'
         else:
             factor_color='black'
-        plot_one_factor(row[lcol],row[ucol],row[coef_col],y,axis,color=factor_color)
+        plot_one_factor(np.log2(row[lcol]), np.log2(row[ucol]), np.log2(row[coef_col]),y,axis,color=factor_color)
         if df2 is not None:
             row2 = df2[df2.index==index]
-            plot_one_factor(row2[lcol], row2[ucol], row2[coef_col], y, ax[1], color='red')
+            plot_one_factor(np.log2(row2[lcol], row2[ucol]), np.log2(row2[coef_col]), y, ax[1], color='red')
         list_of_factors.append(index)
         list_of_ticks.append(y)
         y = y - 1
     axis.set_title(tit1)
 
-    if logplot:
-        xlabel_str = "log(Hazards ratio) \n" + interval_string + 'Confidence interval'
-    else:
-        xlabel_str = "Hazards ratio \n" + interval_string + 'Confidence interval'
+    #if logplot:
+    #    pass #xlabel_str = "log(Hazards ratio) \n" + interval_string + 'Confidence interval'
+    #else:
+    xlabel_str = "Hazards ratio \n" + interval_string + 'Confidence interval'
     for a in ax:
         a.set_xlabel(xlabel_str)
+        #add ticks to the plot with exp of value
+        a.set_xticks([np.log2(0.5),0,np.log2(2)])
         a.grid()
 
     if df2 is not None:
@@ -198,8 +205,8 @@ if __name__ == '__main__':
         formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("-input_csv", help="Input CSV files", type=str, required=True)
     parser.add_argument("--min_cases", help="Minimal number of cases of mutations", type=int, default=3)
-    parser.add_argument("--genes", help="Comma separated list of genes of interest ", type=str, default="")
-    parser.add_argument("--factors", help="Comma separated list of factors of interest ", type=str, default="")
+    parser.add_argument("--genes", help="Comma separated list of genes of interest ", type=str, default=None)
+    parser.add_argument("--factors", help="Comma separated list of factors of interest ", type=str, default=None)
     parser.add_argument("--status_col", help="Comma separated list of factors of interest ", type=str, default="status")
     parser.add_argument("--survival_time_col", help="Comma separated list of factors of interest ", type=str, default="survival_in_days")
     parser.add_argument("--patient_id_col", help="Comma separated list of factors of interest ", type=str,
@@ -215,7 +222,7 @@ if __name__ == '__main__':
     parser.add_argument("--model_report", help="Path to model report", type=str,
                         default="cox_model_report.pdf")
     parser.add_argument("--univar", help="Perform univariante analysis use specified list of factors as base and vary other", type=str,
-                        default="")
+                        default=None)
     parser.add_argument("--verbose", help="Comma separated list of factors of interest ", type=int, default=2)
     parser.add_argument("--show", help="If set, plots will be shown", default=False,
                         action='store_true')
@@ -230,14 +237,17 @@ if __name__ == '__main__':
     show = args.show
     global ALPHA
     ALPHA = 0.1
-    if args.genes == "":
+    if args.genes is None or args.genes == "":
         genes = None
     else:
         genes = args.genes.split(',')
     if args.factors == "":
-        factors = None
-    else:
+        factors = ""
+
+    elif len(args.factors) > 0:
         factors = args.factors.split(',')
+    else:
+        factors = None
     if args.univar == "":
         list_of_univar_factors = None
     else:
@@ -251,20 +261,25 @@ if __name__ == '__main__':
     keep_columns = [status_col, survival_time_col]
     #todo add ignore columns
     ignore_columns = ['distance_from_mean', 'outlier','disease-free-status', 'disease-free-time','patient_id','status','survival_in_days']
-    genes_columns = [col for col in df.columns if col.startswith('gene_')]
+    genes_columns = []
+    if args.genes is None:
+        genes_columns = [col for col in df.columns if col.startswith('gene_')]
+        genes_columns = [col for col in genes_columns if df[col].sum() >= min_cases]
     if genes is not None:
-        genes_columns = [col for col in genes_columns if col.split('_')[1] in genes]
+        for gene in genes:
+            genes_columns.extend([col for col in df.columns if col.startswith(f'gene_{gene}')])
     #keep only such genes which have at least min_cases
-    genes_columns = [col for col in genes_columns if df[col].sum() >= min_cases]
+
 
     factor_columns = []
-    if factors is not None:
+    if factors is not None and len(factors) > 0:
         factor_columns = factors
-    else:
+    elif factors is None:
         factor_columns = [col for col in df.columns if not col.startswith('gene_') and
                           col not in keep_columns and
                           col not in ignore_columns and
                           not col.endswith('_date')]
+
     if args.verbose > 1:
         print(f"Model will be created based on following columns of data:")
         print(f"genes_columns:{genes_columns}")
@@ -406,7 +421,7 @@ if __name__ == '__main__':
 
     #df_formodel.drop(columns=['drugs'], inplace=True)
 
-    if args.univar != "":
+    if args.univar is not None:
         common_uni_factors = []
         for cox_factor in sorted(genes_columns + factor_columns):
             if cox_factor in list_of_univar_factors:
@@ -425,7 +440,7 @@ if __name__ == '__main__':
             print(f"Univariante factors:")
             print(df_coomon_uni_factors)
     #preselect sagnificant factors on the base of univariant analysis:
-    if args.univar != "":
+    if args.univar is not None:
         multi_factors = list_of_univar_factors
         for col in df_coomon_uni_factors.columns:
             if 'coef lower' in col:
@@ -450,7 +465,7 @@ if __name__ == '__main__':
         print(f"Multivariante factors:")
         cph.print_summary()
     if len(list_of_univar_factors) > 0:
-        treeplot(df_coomon_uni_factors, df2=None,tit1='Univariant analysis',logplot=False,selected_list_of_factors=multi_factors)
+        treeplot(df_coomon_uni_factors, df2=None,tit1='Univariant analysis',logplot=True,selected_list_of_factors=multi_factors)
     if args.plot_outcome:
         for factor in df_formodel.columns.difference([status_col,survival_time_col]):
             cph.plot_partial_effects_on_outcome(factor, df_formodel[factor].unique().tolist())
@@ -464,7 +479,7 @@ if __name__ == '__main__':
 
     pp = PdfPages(args.model_report)
     #TODO add concordance index to title of the plot
-    fig,axis = treeplot(cph.summary,tit1=f"n={len(df_formodel.index)}. Cox model concordance index: {cph.concordance_index_:.4f}",logplot=False)
+    fig,axis = treeplot(cph.summary,tit1=f"n={len(df_formodel.index)}. Cox model concordance index: {cph.concordance_index_:.4f}",logplot=True)
     pp.savefig(fig)
     pp.close()
     if args.show:
