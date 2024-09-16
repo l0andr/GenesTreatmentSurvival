@@ -234,6 +234,7 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
                       "sex":"sex",
                       "Smoking hx?": "smoking",
                       "Alcohol use": "alcohol",
+                      "Alcohol use history": "alcohol_history",
                       "Drug use hx?": "drugs",
                       "Cancer Type. Simple": "cancer_type",
                       "Anatomic stage": "anatomic_stage",
@@ -263,8 +264,9 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
                       "ENE?":"ene",
                       "PNI?":"pni",
                       "LVSI?":"lvi",
-                      "PDL1 Expression":"pdl1",
-                      "PDL-1 Category": "pdl1_category",
+                      "PD-L1 Expression":"pdl1",
+                      "PD-L1 Category; 2=1-10; 3=11-19, 4=)": "pdl1_category",
+                      "PD-L1 Combined Positive Score": "pdl1_category",
                       "Smoking  pack-years": "smoking_packs",
                       "accession_number":"accession_number",
                       "tmb_value":"tmb_value",
@@ -288,7 +290,13 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
         i += 1
     #in df[race] replace values: 0=white, 1=black, 2=other, 3=unknown
     df = df[df['patient_name'].notna()]
-    df_clean = df[list(columns_rename.keys())]
+    try:
+        df_clean = df[list(columns_rename.keys())]
+    except Exception as e:
+        print(e)
+        print(columns_rename)
+        print(list(df.columns))
+        raise e
     df_clean = df_clean.rename(columns=columns_rename)
     df_clean.drop_duplicates(subset=['patient_id','gene'],inplace=True)
     replacement_dict = {0: 'white', 1: 'black', 2: 'other', 3: 'unknown'}

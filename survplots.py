@@ -10,6 +10,8 @@ from lifelines import KaplanMeierFitter
 from lifelines.utils import median_survival_times
 from lifelines.plotting import add_at_risk_counts
 
+
+
 def plot_piecharts_of_categorial_variables(df_clean:pd.DataFrame):
     #df_tmp = df_clean.loc[:, ~df_clean.columns.str.contains('date', case=False)]
     #df_tmp = df_tmp.loc[:, ~df_tmp.columns.str.contains('gene_', case=False)]
@@ -105,8 +107,13 @@ def plot_kaplan_meier(df_pu: pd.DataFrame, column_name: str,
             i += 1
             ix = df_pu[column_name] == s
             kmf = KaplanMeierFitter()
+            #TODO find more general way to create lables
+            if 'gene' in column_name:
+                label_str = 'mutated' if s == 1 else 'non-mutated'
+            else:
+                label_str = str(s)
             kmf.fit(df_pu[survival_in_days][ix], df_pu[status_column][ix],
-                    label=column_name + " = " + str(s) + f" p-value = {p_values[s]:.5f} ")
+                    label=column_name + " = " + label_str + f" p-value = {p_values[s]:.5f} ")
             kmf.plot_survival_function(ax=ax[0], ci_legend=True, at_risk_counts=False)
             at_risk_lables.append(f"{column_name} = {s}")
             kmfs.append(kmf)

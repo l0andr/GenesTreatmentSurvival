@@ -169,7 +169,7 @@ def treeplot(df:pd.DataFrame,df2:Optional[pd.DataFrame]=None,
         plot_one_factor(np.log2(row[lcol]), np.log2(row[ucol]), np.log2(row[coef_col]),y,axis,color=factor_color)
         if df2 is not None:
             row2 = df2[df2.index==index]
-            plot_one_factor(np.log2(row2[lcol], row2[ucol]), np.log2(row2[coef_col]), y, ax[1], color='red')
+            plot_one_factor(np.log2(row2[lcol]),np.log2(row2[ucol]), np.log2(row2[coef_col]), y, ax[1], color='red')
         list_of_factors.append(index)
         list_of_ticks.append(y)
         y = y - 1
@@ -181,8 +181,14 @@ def treeplot(df:pd.DataFrame,df2:Optional[pd.DataFrame]=None,
     xlabel_str = "Hazards ratio \n" + interval_string + 'Confidence interval'
     for a in ax:
         a.set_xlabel(xlabel_str)
-        #add ticks to the plot with exp of value
-        a.set_xticks([np.log2(0.5),0,np.log2(2)])
+        #get xticks from the pot and compute exp from them and put back
+        xticks = a.get_xticks()
+        xticks_labels = [f"{np.exp2(x):.2f}" for x in xticks]
+        a.set_xticklabels(xticks_labels)
+
+
+
+
         a.grid()
 
     if df2 is not None:
@@ -223,7 +229,7 @@ if __name__ == '__main__':
                         default="cox_model_report.pdf")
     parser.add_argument("--univar", help="Perform univariante analysis use specified list of factors as base and vary other", type=str,
                         default=None)
-    parser.add_argument("--verbose", help="Comma separated list of factors of interest ", type=int, default=2)
+    parser.add_argument("--verbose", help="Verbose level 0-silent, 3-maximum verbose", type=int, default=2)
     parser.add_argument("--show", help="If set, plots will be shown", default=False,
                         action='store_true')
     parser.add_argument("--plot_outcome", help="If set, plots will be shown", default=False,
@@ -249,8 +255,8 @@ if __name__ == '__main__':
     else:
         factors = None
     if args.univar == "":
-        list_of_univar_factors = None
-    else:
+        list_of_univar_factors = []
+    elif args.univar is not None:
         if args.penalizer < 0 or args.l1ratio < 0:
             raise RuntimeError("Penalizer and l1ratio must be set for univariante analysis")
         list_of_univar_factors= args.univar.split(',')
@@ -287,7 +293,7 @@ if __name__ == '__main__':
         print(f"status_col:{status_col}")
         print(f"survival_time_col:{survival_time_col}")
         print(f"patient_id_col:{patient_id_col}")
-    if list_of_univar_factors is None:
+    if args.univar is None:
         list_of_univar_factors = []
     df_formodel = df[list(set(keep_columns + genes_columns + factor_columns + list_of_univar_factors))]
     #df_formodel = df_formodel.dropna()
@@ -320,11 +326,16 @@ if __name__ == '__main__':
             if column in list_of_univar_factors:
                 list_of_univar_factors.remove(column)
 
-            factor_columns.remove(column)
+            try:
+                factor_columns.remove(column)
+            except ValueError:
+                print(f"Column {column} not found in factor_columns")
+                raise ValueError(f"Column {column} not found in factor_columns")
             column_for_dropping.append(column)
-        elif (df_formodel[column].dtype == int or  df_formodel[column].dtype ==np.float64 or df_formodel[column].dtype == np.int) and \
+        elif (df_formodel[column].dtype == int or  df_formodel[column].dtype ==np.float64 or df_formodel[column].dtype == np.int64) and \
                 len(df_formodel[column].unique().tolist()) > 5:
             df_formodel[column] = df_formodel[column].fillna(df_formodel[column].median()).astype(np.float64)
+
 
 
     df_formodel.drop(columns=column_for_dropping, inplace=True)

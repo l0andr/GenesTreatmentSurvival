@@ -125,7 +125,7 @@ if __name__ == '__main__':
         lambda x: 1 if x['response'] < 2.0 or (x['response'] == 2.0 and x['disease_free_time'] < 180) else 0, axis=1)
     #in group by patient_id set status to 0 for all tnum < max(tnum) for this patient_id
     tdf['maxtnum'] = tdf.groupby('patient_id')['tnum'].transform('max')
-    tdf['status'] = tdf.apply(lambda x: 0 if x['tnum'] < x['maxtnum'] else x['status'], axis=1)
+    tdf['status'] = tdf.apply(lambda x: 1 if x['tnum'] < x['maxtnum'] else x['status'], axis=1)
 
 
 

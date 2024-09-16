@@ -44,7 +44,7 @@ if __name__ == '__main__':
     #column overall status of patient. Check all rows with same patient_id and if one of status is 1 overall status = 1
     df['overall_status'] = df.groupby(patient_id_column)[status_column].transform('max')
     #column overall survival - check all rows with same patient_id and select value with greates survival time
-    df['overall_survival'] = df.groupby(patient_id_column)[survival_column].transform('max')
+    df['overall_survival'] = df.groupby(patient_id_column)[survival_column].transform('sum')
 
 
     #todo implement variant without treatment_id
@@ -109,7 +109,7 @@ if __name__ == '__main__':
     if is_treatment_column:
         custom_lines.append(Line2D([0], [0], color='blue', lw=2, linestyle='-', marker='o', label='Chemotherapy'))
         custom_lines.append(Line2D([0], [0], color='blue', lw=2, linestyle='-', marker='*', label='Imunotherapy'))
-        custom_lines.append(Line2D([0], [0], color='blue', lw=2, linestyle='-', marker='x', label='Surgical\Other'))
+        custom_lines.append(Line2D([0], [0], color='blue', lw=2, linestyle='-', marker='x', label='Surgical\Radio'))
         if are_zero_treatment:
             custom_lines.append(Line2D([0], [0], color='blue', lw=2, linestyle='-', marker='+', label='No treatment'))
         if are_other_treatment:

@@ -428,11 +428,14 @@ if __name__ == '__main__':
         significant = significant[significant['-log10(p-value)'] > -np.log10(p_value_threshold)]
         plt.scatter(significant['log2(OddsRatio)'], significant['-log10(p-value)'], color='red')
         if len(table_data) > 0:
+            pass
+            '''
             the_table = plt.table(cellText=table_data,
                               rowLabels=raw_lables,
                               colLabels=['TP','FP','TN','FN','Odds ratio','p-value'],
                               loc='left')
             the_table.auto_set_font_size(False)
+            '''
         #add gene names to the plot
         for i, txt in enumerate(significant.index):
             ax.annotate("  "+txt, (significant['log2(OddsRatio)'][i], significant['-log10(p-value)'][i]),rotation=30*int(i) % 360,fontsize=8)
