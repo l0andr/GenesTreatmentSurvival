@@ -26,7 +26,7 @@ if __name__ == '__main__':
             try:
                 lout.append(int(x))
             except ValueError:
-                if x == 'none' or np.isnan(x):
+                if x == 'none' or x == 'unknown'or np.isnan(x):
                     lout.append(None)
                 else:
                     print(f"Bad element in list {l} {x}")
@@ -34,6 +34,7 @@ if __name__ == '__main__':
     df['treatment_time'] = df[treatment_time_columns].values.tolist()
     df['treatment_time'] = df['treatment_time'].apply(fix_format)
     treatment_type_columns = df.filter(regex=args.treatment_type_prefix).columns
+    print(treatment_type_columns)
     df['treatment_type'] = df[treatment_type_columns].values.tolist()
     df['treatment_type'] = df['treatment_type'].apply(fix_format)
     response_columns = df.filter(regex=args.response_prefix).columns
@@ -65,11 +66,13 @@ if __name__ == '__main__':
         # continue if list contains None or NaN
         if any([x is None or math.isnan(x) for x in [d[0]]]):
             continue
-
-        for i in range(1, len(d)):
+        print(f"Patient {row[1]['patient_id']} {d}")
+        for i in range(0, len(d)):
+            number_of_mutation = row[1].filter(regex='gene_').sum()
             if (d[i - 1] is None or math.isnan(d[i - 1])) and not (d[i] is None or math.isnan(d[i])):
                 list_of_lost_times[row[1]['patient_id']] = i - 1
             if d[i - 1] is not None and not math.isnan(d[i - 1]):
+
                 try:
                     resp = float(row[1]['response_'][i - 1])
                 except ValueError:
@@ -83,9 +86,7 @@ if __name__ == '__main__':
                 if isinstance(treat, str) or treat is None:
                     list_of_lost_repsonse_treatment[row[1]['patient_id']] = -2 * 10 - (i - 1)
             dft = d[i] - d[i - 1]
-            number_of_mutation = row[1].filter(regex='gene_').sum()
-            #drop all NaN values from d
-
+                #drop all NaN values from d
             #if i < len(d) and d[i] is not None and not math.isnan(d[i]):
             #    treat_status = 1
             #else:
@@ -101,7 +102,7 @@ if __name__ == '__main__':
             for col in df.filter(regex='gene_').columns:
                 new_row_tdf[col] = row[1][col]
             transf_dataset.append(new_row_tdf)
-
+            print(f"New row {new_row_tdf['patient_id']} {new_row_tdf['tnum']} {new_row_tdf['treatment_time']} {new_row_tdf['response']} ")
     print(list_of_lost_times)
     print(len(list_of_lost_times.keys()))
     print(list_of_lost_repsonse_treatment)

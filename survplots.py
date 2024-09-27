@@ -87,12 +87,11 @@ def plot_histograms_of_float_values(df_clean:pd.DataFrame):
     return fig, ax
 
 def plot_kaplan_meier(df_pu: pd.DataFrame, column_name: str,
-                           status_column: str = "Status", survival_in_days: str = "Survival_in_days",
-                           plot_pvalues=True):
+                           status_column: str = "Status", survival_in_days: str = "Survival_in_days"):
 
-        diff_values = df_pu[column_name].dropna().unique().tolist()
+        diff_values = sorted(df_pu[column_name].dropna().unique().tolist())
 
-        fig, ax = plt.subplots(figsize=(18, 8), nrows=1, ncols=1, sharex=True)
+        fig, ax = plt.subplots(figsize=(8, 8), nrows=1, ncols=1, sharex=True)
         if not isinstance(ax, np.ndarray):
             ax = [ax]
         i = 0
@@ -108,12 +107,16 @@ def plot_kaplan_meier(df_pu: pd.DataFrame, column_name: str,
             ix = df_pu[column_name] == s
             kmf = KaplanMeierFitter()
             #TODO find more general way to create lables
-            if 'gene' in column_name:
-                label_str = 'mutated' if s == 1 else 'non-mutated'
+            full_label = ''
+            if column_name.startswith('gene_'):
+                label_str = 'mutated' if s == 1 else 'wildtype'
+                gene_name = column_name.replace('gene_','')
+                full_label = label_str + " " +gene_name
             else:
                 label_str = str(s)
+                full_label = column_name + " = " + label_str
             kmf.fit(df_pu[survival_in_days][ix], df_pu[status_column][ix],
-                    label=column_name + " = " + label_str + f" p-value = {p_values[s]:.5f} ")
+                    label=full_label + f" p-value = {p_values[s]:.5f} ")
             kmf.plot_survival_function(ax=ax[0], ci_legend=True, at_risk_counts=False)
             at_risk_lables.append(f"{column_name} = {s}")
             kmfs.append(kmf)
@@ -208,6 +211,7 @@ if __name__ == '__main__':
                 pp.savefig(fig)
             except Exception as e:
                 print(f"Error while plotting kaplan_meier for column {col}: {str(e)}")
+                raise e
     elif plot_type == "pieplots":
         fig, ax = plot_piecharts_of_categorial_variables(df.loc[:,columns])
         pp.savefig(fig)

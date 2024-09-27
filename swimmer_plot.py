@@ -41,9 +41,8 @@ if __name__ == '__main__':
             raise RuntimeError(f"Column {column} not found in input CSV file")
     if (len(treatment_column) > 0 or len(response_column)>0 ) and len(treatment_id) == 0:
         raise RuntimeError("Treatment ID is required")
-    #column overall status of patient. Check all rows with same patient_id and if one of status is 1 overall status = 1
-    df['overall_status'] = df.groupby(patient_id_column)[status_column].transform('max')
-    #column overall survival - check all rows with same patient_id and select value with greates survival time
+    #column overall status of patient. Check all rows with same patient_id and if one of status is 0 overall status = 0
+    df['overall_status'] = df.groupby(patient_id_column)[status_column].transform('min')
     df['overall_survival'] = df.groupby(patient_id_column)[survival_column].transform('sum')
 
 
@@ -99,9 +98,11 @@ if __name__ == '__main__':
                 linet = ['-', '--', '-.', ':'][int(resp)]
         else:
             linet = '-'
-
+        print(f"Patient {patinet_id} x={x} x1={x1} y={y} color={color} symb={symb} linet={linet}")
         plot = plt.plot([x, x + x1], [y, y],linet, color=color)
         plot = plt.plot([x], [y],symb,color=color)
+        #write patient_id under each line
+        plt.text(20, y-0.5, str(patinet_id), fontsize=8)
         plt.xlabel('Survival time (days)')
         plt.ylabel('Patient')
         plt.title('Swimmer plot')

@@ -67,6 +67,7 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
     warnings.simplefilter('ignore')
     if date_columns_spec is None:
         date_columns_spec = find_date_columns(df)
+        date_columns_spec += treatment_dates_columns
     date_columns = []
     print(f"1Number of patients {len(df['patient_name'].unique())}")
     for col in date_columns_spec:
@@ -76,6 +77,7 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
                 date_columns.append(col)
             except Exception as e:
                 continue
+
     warnings.resetwarnings()
     #print(date_columns)
 
@@ -108,6 +110,7 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
     df.loc[:, 'Survival_in_days'] = np.where(df[c1].notna() & df[c2].notna(), (df[c2] - df[c1]).dt.days,
                                                 np.nan)
     df.loc[:, 'Status'] = df['SurvivalUPDATED'] == 'N'
+    print(df.loc[:, 'Status'])
     warnings.simplefilter(action='ignore', category=FutureWarning)
     warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 
@@ -217,11 +220,13 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
     df.loc['Prior cancer?'] = df['Prior cancer?'].apply(lambda x: x == 'Y')
 
     #age upper median
-    age_median = df.drop_duplicates(subset='patient_name')['Age'].median()
+    age_quantile_25 = df.drop_duplicates(subset='patient_name')['Age'].quantile(0.25)
+    age_quantile_50 = df.drop_duplicates(subset='patient_name')['Age'].quantile(0.5)
     age_quantile_75 = df.drop_duplicates(subset='patient_name')['Age'].quantile(0.75)
-    df.loc[df['Age'] > age_median, 'age_level'] = 1
-    df.loc[df['Age'] <= age_median, 'age_level'] = 0
-    df.loc[df['Age'] >= age_quantile_75, 'age_level'] = 2
+    df.loc[df['Age'] <= age_quantile_25, 'age_level'] = 0
+    df.loc[(df['Age'] > age_quantile_25) & (df['Age'] <= age_quantile_50), 'age_level'] = 1
+    df.loc[(df['Age'] > age_quantile_50) & (df['Age'] <= age_quantile_75), 'age_level'] = 2
+    df.loc[df['Age'] > age_quantile_75, 'age_level'] = 3
     #total number of mutation as sum of all columns that start from genes_ prefix
     #if ENE? have value not from list ['Y','N'] then set to None
     df.loc[df['ENE?'].apply(lambda x: x not in ['Y','N']), 'ENE?'] = None
@@ -266,7 +271,7 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
                       "LVSI?":"lvi",
                       "PD-L1 Expression":"pdl1",
                       "PD-L1 Category; 2=1-10; 3=11-19, 4=)": "pdl1_category",
-                      "PD-L1 Combined Positive Score": "pdl1_category",
+                      "PD-L1 Combined Positive Score": "pdl1_score",
                       "Smoking  pack-years": "smoking_packs",
                       "accession_number":"accession_number",
                       "tmb_value":"tmb_value",

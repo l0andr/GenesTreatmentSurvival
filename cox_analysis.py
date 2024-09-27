@@ -147,7 +147,9 @@ def treeplot(df:pd.DataFrame,df2:Optional[pd.DataFrame]=None,
     df.sort_values(by=coef_col,inplace=True,ascending=False)
     list_of_factors = []
     list_of_ticks = []
-    def plot_one_factor(lb,ub,coef,y,axis,color='black'):
+    def plot_one_factor(lb,ub,coef,y,axis,color='black',sagn_color='red'):
+        if np.sign(lb) == np.sign(ub):
+            color = sagn_color
         axis.plot([lb, ub], [y, y], color=color)
         axis.plot([coef,coef], [y, y], 'o', color=color)
         axis.plot([lb, ub], [y, y], '|', color=color)
