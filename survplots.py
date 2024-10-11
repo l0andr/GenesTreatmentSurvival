@@ -1,5 +1,7 @@
 import argparse
 import os
+from tabnanny import verbose
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,6 +11,7 @@ from lifelines.statistics import logrank_test, multivariate_logrank_test
 from lifelines import KaplanMeierFitter
 from lifelines.utils import median_survival_times
 from lifelines.plotting import add_at_risk_counts
+from scipy.stats import fisher_exact
 
 
 
@@ -135,8 +138,10 @@ def keep_only_specific_columns(df, keep_columns, ignore_columns):
                       col in keep_columns or
                       col not in ignore_columns]]
 
+
+
 if __name__ == '__main__':
-    list_of_plot_types = ["kaplan_meier", "pieplots", "floathistograms", "valuecounts"]
+    list_of_plot_types = ["kaplan_meier", "pieplots", "floathistograms", "valuecounts",'fisher_exact_test']
     parser = argparse.ArgumentParser(description="Plot figres for survival analysis",
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument("--input_csv", help="Input CSV file", type=str, required=True)
@@ -155,6 +160,8 @@ if __name__ == '__main__':
                         action='store_true')
     parser.add_argument("--verbose", help="Verbose mode", type=int, default=1)
 
+    parser.add_argument("--filter_nan_columns", help="comma separated list of columns where NaN will be detected and filetered", default="")
+    parser.add_argument("--title", help="Title of plot", type=str, default="")
     args = parser.parse_args()
     input_csv = args.input_csv
 
@@ -163,23 +170,41 @@ if __name__ == '__main__':
     patient_id_col = args.patient_id_col
     show = args.show
     plot_type = args.plot
-
     df = pd.read_csv(input_csv)
-    min_group_size = int(args.min_size_of_group * len(df))
-    max_number_of_groups = args.max_amount_of_groups
-
+    if args.filter_nan_columns != "":
+        columns_to_filter = args.filter_nan_columns.split(',')
+        if verbose > 1:
+            print(f"survplots:Number of rows before NaN in columns {columns_to_filter} filtering:{len(df.index)}")
+        df = df.dropna(subset=columns_to_filter)
+        if verbose > 1:
+            print(f"survplots:Number of rows after NaN in columns {columns_to_filter} filtering:{len(df.index)}")
     pp = PdfPages(args.output_pdf)
     if args.columns == "":
         columns = [col for col in df.columns if col not in [status_col, survival_time_col, patient_id_col]]
+    elif args.columns.endswith('*'):
+        columns = [col for col in df.columns if col.startswith(args.columns[:-1])]
     else:
         columns = args.columns.split(',')
+    if args.verbose > 1:
+        print(f"survplots:Columns subjected for plot and analysis: {columns}")
+    #remove all kind of none values from status column
+    number_of_rows_before_status_column_nan_filtering = len(df.index)
+    df = df.dropna(subset=[status_col])
+    if number_of_rows_before_status_column_nan_filtering != len(df.index):
+        print(f"survplots:Warning: Number of rows after NaN in status column filtering:{len(df.index)}")
+    #check if status column is binary
+    if df[status_col].nunique() != 2:
+        raise RuntimeError(f"Column {status_col} is not binary")
+    #convert status column to boolean
+    df[status_col] = df[status_col].astype(bool)
+
 
     if plot_type == "kaplan_meier":
         i = 0
-        #if df[survival_time_col] > args.max_survival_length make df[survival_time_col] = args.max_survival_length
-        #and df[status_col] = 0
         df.loc[df[survival_time_col] > args.max_survival_length, status_col] = False
         df.loc[df[survival_time_col] > args.max_survival_length, survival_time_col] = args.max_survival_length
+        min_group_size = int(args.min_size_of_group * len(df))
+        max_number_of_groups = args.max_amount_of_groups
 
         for col in tqdm.tqdm(columns, desc="Plotting kaplan_meier", disable=args.verbose != 1):
             #check if column is categorial
@@ -221,7 +246,79 @@ if __name__ == '__main__':
     elif plot_type == "valuecounts":
         fig, ax = plot_value_counts(df, columns)
         pp.savefig(fig)
+    elif plot_type == "fisher_exact_test":
+        binary_outcome_column = args.status_col
+        #check that all columns are binary
+        for col in columns:
+            if df[col].nunique() != 2:
+                print(f"survplots:Warning! Column {col} is not binary, will skip it")
+        columns_binary = [col for col in columns if df[col].nunique() == 2]
+        good_outcome_factor_true = {}
+        good_outcome_factor_false = {}
+        bad_outcome_factor_true = {}
+        bad_outcome_factor_false = {}
+        tdf_good_response = df[df[binary_outcome_column] == True]
+        tdf_bad_response = df[df[binary_outcome_column] == False]
+        fisher_results = {}
+        p_value_threshold = 0.1
+        p_value_threshold2 = 0.05
 
+        table_data = []
+        raw_lables = []
+
+        for col in columns_binary:
+            good_outcome_factor_true[col] = tdf_good_response[col].sum()
+            good_outcome_factor_false[col] = len(tdf_good_response) - good_outcome_factor_true[col]
+            bad_outcome_factor_true[col] = tdf_bad_response[col].sum()
+            bad_outcome_factor_false[col] = len(tdf_bad_response) - bad_outcome_factor_true[col]
+            #if good_poutcome_factor_true[col] + bad_poutcome_factor_false[col] < 10:
+            #    continue
+
+            ftable = [[good_outcome_factor_true[col], good_outcome_factor_false[col]] ,
+                      [bad_outcome_factor_true[col], bad_outcome_factor_false[col]]]
+            #continue if some of the value for Fisher test are 0
+            if 0 in ftable[0] or 0 in ftable[1]:
+                continue
+            oddsratio, pvalue = fisher_exact(ftable)
+            fisher_results[col] = (oddsratio,pvalue)
+            if pvalue < p_value_threshold:
+                print(f"Factor {col} oddsratio {oddsratio:.4f} pvalue {pvalue:.4f} [TP TN FP FN]:{ftable}")
+                raw_lables.append(col)
+                table_data.append([ftable[0][0],ftable[0][1],ftable[1][0],ftable[1][1], oddsratio,pvalue])
+
+        #plot fisher results as scatter plot
+        fig,ax = plt.subplots()
+        pvalue = [x[1] for x in fisher_results.values()]
+        oddsratio = [x[0] for x in fisher_results.values()]
+        #replace inf in ods ratio with 100
+        oddsratio = [10 if x == float('inf') else x for x in oddsratio]
+        genes = [x for x in fisher_results.keys()]
+        #remove perfix genes_ from gene names
+        genes = [x.replace('gene_','') for x in genes]
+        ax.scatter(np.log2([x[0] for x in fisher_results.values()]),-np.log10([x[1] for x in fisher_results.values()]))
+        ax.set_xlabel('Log2(Odds ratio)')
+        ax.set_ylabel('-Log10(P-value)')
+        ax.grid()
+        #select pvalue  < 0.05 and plot them in red
+        significant = pd.DataFrame({'log2(OddsRatio)':np.log2(oddsratio),'-log10(p-value)':-np.log10(pvalue),'name':genes},index=genes)
+        significant = significant[significant['-log10(p-value)'] > -np.log10(p_value_threshold)]
+        plt.scatter(significant['log2(OddsRatio)'], significant['-log10(p-value)'], color='red')
+        for i, txt in enumerate(significant.index):
+            ax.annotate("  " + txt, (significant['log2(OddsRatio)'][i], significant['-log10(p-value)'][i]),
+                        rotation=30 * int(i) % 360, fontsize=8)
+            # plot horizontal line at pvalue = p_value_threshold
+        ax.axhline(-np.log10(p_value_threshold), color='r', linestyle='--')
+        # plot text near line with p_value_threshold
+        ax.text(0.1, -np.log10(p_value_threshold) + 0.02, f'p-value = {p_value_threshold}', rotation=0, fontsize=12)
+        ax.axhline(-np.log10(p_value_threshold2), color='r', linestyle='-.')
+        # plot text near line with p_value_threshold
+        ax.text(0.1, -np.log10(p_value_threshold2) + 0.02, f'p-value = {p_value_threshold2}', rotation=0, fontsize=12)
+
+        # and vertical line at log2(oddsratio) = 0
+        ax.axvline(0, color='k', linestyle='-', linewidth=1)
+        plt.title(f'{args.title} Exact fisher tests. ')
+        plt.tight_layout()
+        pp.savefig(fig)
     if show:
         plt.show()
     pp.close()

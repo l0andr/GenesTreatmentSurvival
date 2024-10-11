@@ -3,6 +3,9 @@ import numpy as np
 from typing import List,Optional
 import argparse
 import warnings
+
+from pandas.errors import PerformanceWarning
+
 warnings.simplefilter(action='ignore', category=FutureWarning)
 #warnings.simplefilter(action='ignore', category=PerformanceWarning)
 def convert_int(x):
@@ -33,10 +36,17 @@ def find_date_columns(df):
             t = df[col].dtype
         except Exception as e:
             continue
-        if t == 'object':
+        if t == 'object' and pd.api.types.is_string_dtype(df[col]):
             # Check if any entry in the column matches the date pattern
-            if df[col].str.match(pattern).any():
-                date_cols.append(col)
+            try:
+                check_column = df[col]
+                check_column = check_column.dropna()
+
+                if check_column.str.match(pattern).any():
+                    date_cols.append(col)
+            except Exception as e:
+                print(f"Error in check dates in string column {col}, column type {t}, column content {check_column.tolist()}")
+                raise(e)
         elif t == 'datetime64[ns]':
             date_cols.append(col)
     return date_cols
@@ -53,8 +63,11 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
                                   'Best response to therapy 2',
                                   'Best response to therapy 3', 'Best response to therapy 4',
                                   'Best response to therapy 5']
-    treatment_dates_columns = ['Date of Initial Tx', 'Recurrence/progression #1 Date',
+    reccurence_dates_columns = ['Date of Initial Tx', 'Recurrence/progression #1 Date',
                                'Recurrence #2 Date', 'Recurrence #3 Date', 'Recurrence #4 Date', 'Recurrence #5 Date']
+    treatment_dates_columns = ['Date of Initial Tx', 'Treatment 2 Start Date', 'Treatment 3 Start Date',
+                               'Treatment 4 Start Date', 'Treatment 5 Start Date', 'Treatment 6 Start Date']
+
     to_drop = []
     for c in unique_counts.keys().tolist():
         if c not in treatment_columns and c not in treatment_response_columns and c not in treatment_dates_columns:
@@ -69,7 +82,6 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
         date_columns_spec = find_date_columns(df)
         date_columns_spec += treatment_dates_columns
     date_columns = []
-    print(f"1Number of patients {len(df['patient_name'].unique())}")
     for col in date_columns_spec:
         if col in df.columns:
             try:
@@ -79,8 +91,7 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
                 continue
 
     warnings.resetwarnings()
-    #print(date_columns)
-
+    warnings.simplefilter(action='ignore', category=PerformanceWarning)
     df.loc[:, 'max_date'] = df[date_columns].apply(
         lambda row: max([date for date in row if pd.notna(date)], default=np.nan), axis=1)
     date_columns_minus_dob = list(set(date_columns) - set(['dob']))
@@ -89,9 +100,10 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
 
     df.loc[:,'last_report_date'] = pd.NaT
     last_date_columns.append('max_date')
-    print(f"2Number of patients {len(df['patient_name'].unique())}")
     for c in last_date_columns:
         df.loc[df['last_report_date'].isna(), 'last_report_date'] = df[df['last_report_date'].isna()][c]
+
+
 
     df.loc[:,'initial_report_date'] = pd.NaT
     initial_date_columns.append('min_date')
@@ -99,7 +111,7 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
         df.loc[df['initial_report_date'].isna(), 'initial_report_date'] = df[df['initial_report_date'].isna()][c]
 
     df.loc[:, 'initial_date'] = pd.NaT
-    df.loc[:,'initial_date'] = df['min_date']
+    df.loc[:,'initial_date'] = df['Date of Dx']
 
     c2 = 'initial_report_date'
     c1 = 'dob'
@@ -110,10 +122,8 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
     df.loc[:, 'Survival_in_days'] = np.where(df[c1].notna() & df[c2].notna(), (df[c2] - df[c1]).dt.days,
                                                 np.nan)
     df.loc[:, 'Status'] = df['SurvivalUPDATED'] == 'N'
-    print(df.loc[:, 'Status'])
-    warnings.simplefilter(action='ignore', category=FutureWarning)
-    warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 
+    warnings.simplefilter(action='ignore', category=FutureWarning)
 
     c2 = 'First IMTX course end date OR date of progression'
     c1 = 'First IMTX course start date'
@@ -135,7 +145,6 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
     tmb_percent_column_name = f'tmb_percentile_levels'
     df.loc[df['Length of Immunotherapy'] > tmb_percentile_median, tmb_percent_column_name] = f'over{int(tmb_percentile_median)}'
     df.loc[df['Length of Immunotherapy'] <= tmb_percentile_median, tmb_percent_column_name] = f'less{int(tmb_percentile_median)}'
-    print(f"3Number of patients {len(df['patient_name'].unique())}")
 
     for index,row in df.iterrows():
         #Calculate number of Treatments: find first nan value in treatment_dates_columns
@@ -199,7 +208,6 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
     #remove all rows with empty patient_name
     # replace None in P16 column by 0
     #convert P16 column to string
-    print(f"4Number of patients {len(df['patient_name'].unique())}")
     df.loc['P16+'] = df['P16+'].apply(lambda x: str(x))
     df.loc[df['P16+'].isna(), 'P16+'] = 'N'
     # replace 0 in P16 column by 'N'
@@ -277,7 +285,8 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
                       "tmb_value":"tmb_value",
                       "msi_status":"msi_status",
                       "tmb_percentile":"tmb_percentile",
-                      "tmb":"tmb_level"}
+                      "tmb":"tmb_level",
+                      "Currently receiving treatment":"current_treatment"}
 
     i = 0
     for tfield in treatment_columns:
@@ -292,6 +301,17 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
         df.loc[:, f'treatment_time{i}'] = np.where(df[c1].notna() & df[c2].notna(), (df[c2] - df[c1]).dt.days,
                                                  np.nan)
         columns_rename[f'treatment_time{i}'] = f'treatment_time{i}'
+        i += 1
+    i = 0
+    for tfield in treatment_columns:
+        recc_field =   reccurence_dates_columns[i]
+        c2 = recc_field
+        c1 = 'initial_date'
+        # convert column c2 to datetime
+        df[c2] = pd.to_datetime(df[c2], errors='coerce')
+        df.loc[:, f'reccurence_time{i}'] = np.where(df[c1].notna() & df[c2].notna(), (df[c2] - df[c1]).dt.days,
+                                                   np.nan)
+        columns_rename[f'reccurence_time{i}'] = f'reccurence_time{i}'
         i += 1
     #in df[race] replace values: 0=white, 1=black, 2=other, 3=unknown
     df = df[df['patient_name'].notna()]
@@ -316,6 +336,8 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
     df_clean['total_mutations'] = df_clean.filter(like='gene_').sum(axis=1)
     survival_time_col = 'survival_in_days'
     status_col = 'status'
+    df_clean['overall_survival_in_days'] = 0
+    df_clean['overall_survival_in_days'] = df_clean['survival_in_days']
     df_clean.loc[df_clean[survival_time_col] > max_survival_length, status_col] = 0
     df_clean.loc[df_clean[survival_time_col] > max_survival_length, survival_time_col] = max_survival_length
 
@@ -331,6 +353,7 @@ if __name__ == '__main__':
                         default=365*5)
 
     args = parser.parse_args()
+    print(f"Prepare input data: source data file {args.input_csv}, output file {args.output_csv}")
     genes_prefix = 'gene_'
     duplication_symbols = ['-', '.', 'duplicate']
     patient_id_column = 'patient_name'
@@ -338,4 +361,5 @@ if __name__ == '__main__':
     initial_df = pd.read_csv(args.input_csv,delimiter=args.input_delimiter)
     df = expand_values_for_patients(initial_df,list_of_expand_marks=duplication_symbols,patients_id_columns=patient_id_column)
     df,df_clean = data_preprocessing(df, last_date_columns=['Date of Death','Last known f/u'], initial_date_columns=['tumor_sample_collected_date'],max_survival_length=args.max_survival_length)
+    print(f"Prepare input data: number of patients {df_clean.shape[0]}, number of data columns {df_clean.shape[1]}, number of genes {df_clean.filter(like=genes_prefix).shape[1]}")
     df_clean.to_csv(args.output_csv,index=False)

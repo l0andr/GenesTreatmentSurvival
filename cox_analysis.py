@@ -236,6 +236,9 @@ if __name__ == '__main__':
                         action='store_true')
     parser.add_argument("--plot_outcome", help="If set, plots will be shown", default=False,
                         action='store_true')
+    parser.add_argument("--filter_nan", help="If set, rows with empty or NaN cells willbe filtered out", default=False,
+                        action='store_true')
+    parser.add_argument("--filter_nan_columns", help="comma separated list of columns where NaN will be detected and filetered", default="")
 
     #if factors are not specified, then all factors will be used
     #if genes are not specified, then all genes will be used
@@ -263,6 +266,7 @@ if __name__ == '__main__':
             raise RuntimeError("Penalizer and l1ratio must be set for univariante analysis")
         list_of_univar_factors= args.univar.split(',')
     df = pd.read_csv(args.input_csv)
+
     patient_id_col = args.patient_id_col
     status_col = args.status_col
     survival_time_col = args.survival_time_col
@@ -295,15 +299,22 @@ if __name__ == '__main__':
         print(f"status_col:{status_col}")
         print(f"survival_time_col:{survival_time_col}")
         print(f"patient_id_col:{patient_id_col}")
+    if args.filter_nan:
+        # check columns genes and factors and filter out rows with NaN
+        print(f"Number of rows before NaN filtering:{len(df.index)}")
+        df = df.dropna(subset=genes_columns + factor_columns)
+        print(f"Number of rows after NaN filtering:{len(df.index)}")
+    if args.filter_nan_columns != "":
+        columns_to_filter = args.filter_nan_columns.split(',')
+        print(f"Number of rows before NaN in columns {columns_to_filter} filtering:{len(df.index)}")
+        df = df.dropna(subset=columns_to_filter)
+        print(f"Number of rows after NaN in columns {columns_to_filter} filtering:{len(df.index)}")
+
     if args.univar is None:
         list_of_univar_factors = []
     df_formodel = df[list(set(keep_columns + genes_columns + factor_columns + list_of_univar_factors))]
-    #df_formodel = df_formodel.dropna()
     column_for_dropping = []
     for column in (set(df_formodel.columns) - {status_col, survival_time_col}):
-        #if df_formodel[column].dtype == object:
-        #    df_formodel[column] = df_formodel[column].astype('category')
-        #    df_formodel[column] = df_formodel[column].cat.codes
         if len(df_formodel[column].unique().tolist()) == 1:
             if args.verbose >= 1:
                 print(f"{column} will be dropped (variance = 0)")
@@ -478,7 +489,9 @@ if __name__ == '__main__':
         print(f"Multivariante factors:")
         cph.print_summary()
     if len(list_of_univar_factors) > 0:
-        treeplot(df_coomon_uni_factors, df2=None,tit1='Univariant analysis',logplot=True,selected_list_of_factors=multi_factors)
+        pass
+    treeplot(df_coomon_uni_factors, df2=None,tit1='Univariant analysis',logplot=True,selected_list_of_factors=multi_factors)
+    plt.show()
     if args.plot_outcome:
         for factor in df_formodel.columns.difference([status_col,survival_time_col]):
             cph.plot_partial_effects_on_outcome(factor, df_formodel[factor].unique().tolist())

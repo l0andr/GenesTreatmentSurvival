@@ -9,4 +9,4 @@ tqdm
 scikit-optimize
 fuc
 pyoncoprint
-
+pyqt5

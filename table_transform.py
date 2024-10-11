@@ -46,9 +46,13 @@ if __name__ == '__main__':
     if args.delete_columns:
         df = df.drop(columns=args.delete_columns.split(','))
     if args.filter_column and args.filter_values:
+        print("table_transform.py: filtering rows. filter_column: ", args.filter_column, " filter_values: ", args.filter_values)
         if args.filter_column not in df.columns:
             raise Exception(f'Column {args.filter_column} not found in input file')
-        df = df[df[args.filter_column].astype(str).isin(args.filter_values.split(','))]
+        list_for_filter = args.filter_values.split(',')
+        nvalue_before = len(df)
+        df = df[df[args.filter_column].astype(str).isin(list_for_filter)]
         if len(df) == 0:
             raise Exception(f'No rows left after filtering')
+        print(f"table_transform.py: Filtered {nvalue_before - len(df)} rows. remain {len(df)} rows")
     df.to_csv(args.output, index=False)
