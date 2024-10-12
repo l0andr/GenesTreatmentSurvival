@@ -438,7 +438,7 @@ if __name__ == '__main__':
             '''
         #add gene names to the plot
         for i, txt in enumerate(significant.index):
-            ax.annotate("  "+txt, (significant['log2(OddsRatio)'][i], significant['-log10(p-value)'][i]),rotation=30*int(i) % 360,fontsize=8)
+            ax.annotate("  "+txt, (significant['log2(OddsRatio)'][i], significant['-log10(p-value)'][i]+0.1*i),rotation=0*int(i) % 360,fontsize=8,ha='center')
         #plot horizontal line at pvalue = p_value_threshold
         ax.axhline(-np.log10(p_value_threshold), color='r', linestyle='--')
         #plot text near line with p_value_threshold

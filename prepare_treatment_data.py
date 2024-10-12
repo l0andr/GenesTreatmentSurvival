@@ -125,7 +125,7 @@ if __name__ == '__main__':
             new_row_tdf = {"tnum": i+1, "treatment_time": d[i], "recc_time": rt[i], "response": resp, "treatment_type": treat,
                            "status": treat_status, "disease_free_time": dft, "patient_id": row[1]['patient_id'],
                            "anatomic_stage": row[1]['anatomic_stage'], "cancer_type": row[1]['cancer_type'],
-                           "smoking": row[1]['smoking'], "alcohol": row[1]['alcohol'], "drugs": row[1]['drugs'],
+                           "smoking": row[1]['smoking'], "alcohol_history": row[1]['alcohol_history'], "drugs": row[1]['drugs'],
                            "age_level": row[1]['age_level'], "number_of_mutation": number_of_mutation,
                            "sex": row[1]['sex'],
                            "p16": row[1]['p16'], 'race': row[1]['race'], 'patient_id': row[1]['patient_id'],

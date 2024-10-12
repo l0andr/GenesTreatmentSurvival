@@ -287,7 +287,7 @@ if __name__ == '__main__':
                 table_data.append([ftable[0][0],ftable[0][1],ftable[1][0],ftable[1][1], oddsratio,pvalue])
 
         #plot fisher results as scatter plot
-        fig,ax = plt.subplots()
+        fig,ax = plt.subplots(figsize=(10,10))
         pvalue = [x[1] for x in fisher_results.values()]
         oddsratio = [x[0] for x in fisher_results.values()]
         #replace inf in ods ratio with 100
@@ -303,9 +303,17 @@ if __name__ == '__main__':
         significant = pd.DataFrame({'log2(OddsRatio)':np.log2(oddsratio),'-log10(p-value)':-np.log10(pvalue),'name':genes},index=genes)
         significant = significant[significant['-log10(p-value)'] > -np.log10(p_value_threshold)]
         plt.scatter(significant['log2(OddsRatio)'], significant['-log10(p-value)'], color='red')
+
+        #TODO: implement more general and robust solution for text shifts
+        txt_shift_dict = {}
         for i, txt in enumerate(significant.index):
-            ax.annotate("  " + txt, (significant['log2(OddsRatio)'][i], significant['-log10(p-value)'][i]),
-                        rotation=30 * int(i) % 360, fontsize=8)
+            k = significant['log2(OddsRatio)'][i]*10 + significant['-log10(p-value)'][i]
+            if k not in txt_shift_dict:
+                txt_shift_dict[k] = 0
+            else:
+                txt_shift_dict[k] += 1
+            ax.annotate("  " + txt, (significant['log2(OddsRatio)'][i], significant['-log10(p-value)'][i]-txt_shift_dict[k]*0.035),
+                        rotation=0 * int(i) % 360, fontsize=8,ha='left')
             # plot horizontal line at pvalue = p_value_threshold
         ax.axhline(-np.log10(p_value_threshold), color='r', linestyle='--')
         # plot text near line with p_value_threshold
@@ -316,7 +324,7 @@ if __name__ == '__main__':
 
         # and vertical line at log2(oddsratio) = 0
         ax.axvline(0, color='k', linestyle='-', linewidth=1)
-        plt.title(f'{args.title} Exact fisher tests. ')
+        plt.title(f'{args.title} Exact Fisher test. ')
         plt.tight_layout()
         pp.savefig(fig)
     if show:

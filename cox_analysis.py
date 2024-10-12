@@ -126,12 +126,12 @@ def treeplot(df:pd.DataFrame,df2:Optional[pd.DataFrame]=None,
 
     if df2 is None:
         if fig is None:
-            fig = plt.figure()
+            fig = plt.figure(figsize=(8,12))
         if axis is None:
             axis = plt.gca()
         ax = [axis]
     else:
-        fig,ax = plt.subplots(1,2,sharey=True)
+        fig,ax = plt.subplots(1,2,sharey=True,figsize=(8,12))
         axis=ax[0]
 
     y = len(df.index)
@@ -231,7 +231,7 @@ if __name__ == '__main__':
                         default="cox_model_report.pdf")
     parser.add_argument("--univar", help="Perform univariante analysis use specified list of factors as base and vary other", type=str,
                         default=None)
-    parser.add_argument("--verbose", help="Verbose level 0-silent, 3-maximum verbose", type=int, default=2)
+    parser.add_argument("--verbose", help="Verbose level 0-silent, 3-maximum verbose", type=int, default=1)
     parser.add_argument("--show", help="If set, plots will be shown", default=False,
                         action='store_true')
     parser.add_argument("--plot_outcome", help="If set, plots will be shown", default=False,
@@ -239,6 +239,7 @@ if __name__ == '__main__':
     parser.add_argument("--filter_nan", help="If set, rows with empty or NaN cells willbe filtered out", default=False,
                         action='store_true')
     parser.add_argument("--filter_nan_columns", help="comma separated list of columns where NaN will be detected and filetered", default="")
+    parser.add_argument("--title", help="Title of plot", type=str, default="")
 
     #if factors are not specified, then all factors will be used
     #if genes are not specified, then all genes will be used
@@ -301,14 +302,18 @@ if __name__ == '__main__':
         print(f"patient_id_col:{patient_id_col}")
     if args.filter_nan:
         # check columns genes and factors and filter out rows with NaN
-        print(f"Number of rows before NaN filtering:{len(df.index)}")
+        if args.verbose >= 1:
+            print(f"Number of rows before NaN filtering:{len(df.index)}")
         df = df.dropna(subset=genes_columns + factor_columns)
-        print(f"Number of rows after NaN filtering:{len(df.index)}")
+        if args.verbose >= 1:
+            print(f"Number of rows after NaN filtering:{len(df.index)}")
     if args.filter_nan_columns != "":
         columns_to_filter = args.filter_nan_columns.split(',')
-        print(f"Number of rows before NaN in columns {columns_to_filter} filtering:{len(df.index)}")
+        if args.verbose >= 1:
+            print(f"Number of rows before NaN in columns {columns_to_filter} filtering:{len(df.index)}")
         df = df.dropna(subset=columns_to_filter)
-        print(f"Number of rows after NaN in columns {columns_to_filter} filtering:{len(df.index)}")
+        if args.verbose >= 1:
+            print(f"Number of rows after NaN in columns {columns_to_filter} filtering:{len(df.index)}")
 
     if args.univar is None:
         list_of_univar_factors = []
@@ -324,11 +329,13 @@ if __name__ == '__main__':
                 print(f"{column} will be converted to boolean")
             df_formodel[column] = df_formodel[column].astype('bool')
         elif len(df_formodel[column].unique().tolist()) <= 5 and not df_formodel[column].dtype == bool:
-            print(f"{column} will be converted to multiple columns {df_formodel[column].unique().tolist()}")
+            if args.verbose >= 1:
+                print(f"{column} will be converted to multiple columns {df_formodel[column].unique().tolist()}")
             for val in df_formodel[column].unique().tolist():
                 if val is None or val == np.nan or val == 'nan' or pd.isna(val):
                     continue
-                print(f"\tBinnary column {column}={val} created")
+                if args.verbose >= 1:
+                    print(f"\tBinnary column {column}={val} created")
                 df_formodel[f"{column}={val}"] = df_formodel[column] == val
                 df_formodel[f'{column}={val}'] = df_formodel[f'{column}={val}'].astype('bool')
                 factor_columns.append(f"{column}={val}")
@@ -399,17 +406,17 @@ if __name__ == '__main__':
                                                              event_col=status_col, pen_n_steps=pen_steps,
                                                              l1ratio_n_steps=l1ratio_steps,
                                                              calib_t0=calib_t0, verbose=args.verbose)
-        pp = PdfPages(args.opt_report)
+        ppo = PdfPages(args.opt_report)
         fig = plt.figure()
         buffer = io.StringIO()
         df_formodel.info(buf=buffer)
         plt.text(0.1, 0.1, buffer.getvalue(), fontsize=10)
         plt.axis('off')
-        pp.savefig(fig)
+        ppo.savefig(fig)
         #plt.show()
         for metric in ["concordance_index", "log_likelihood", "log_ratio_test", "probability_calibration","AIC"]:
             fig = plot_scores(metric, scores_all, l1ratio_steps,pen_steps)
-            pp.savefig(fig)
+            ppo.savefig(fig)
 
         best_score = None
         best_scores = None
@@ -434,14 +441,14 @@ if __name__ == '__main__':
         fig = plt.figure()
         plt.text(0.1, 0.1, opt_text, fontsize=12)
         plt.axis('off')
-        pp.savefig(fig)
+        ppo.savefig(fig)
 
         fig=plt.figure()
         cph = CoxPHFitter(alpha=ALPHA, penalizer=best_pen, l1_ratio=best_l1ratio)
         cph.fit(df_formodel, duration_col=survival_time_col, event_col=status_col, show_progress=True)
         axes, ICI, E50 = survival_probability_calibration(cph, df_formodel, t0=calib_t0)
-        pp.savefig(fig)
-        pp.close()
+        ppo.savefig(fig)
+        ppo.close()
 
     #df_formodel.drop(columns=['drugs'], inplace=True)
 
@@ -490,8 +497,13 @@ if __name__ == '__main__':
         cph.print_summary()
     if len(list_of_univar_factors) > 0:
         pass
-    treeplot(df_coomon_uni_factors, df2=None,tit1='Univariant analysis',logplot=True,selected_list_of_factors=multi_factors)
-    plt.show()
+    title_prefix = args.title
+    pp = PdfPages(args.model_report)
+    if args.univar is not None:
+        fig,axis = treeplot(df_coomon_uni_factors, df2=None,tit1=title_prefix+'[Univariant analysis]',logplot=True,selected_list_of_factors=multi_factors)
+        pp.savefig(fig)
+    if args.show:
+        plt.show()
     if args.plot_outcome:
         for factor in df_formodel.columns.difference([status_col,survival_time_col]):
             cph.plot_partial_effects_on_outcome(factor, df_formodel[factor].unique().tolist())
@@ -503,9 +515,8 @@ if __name__ == '__main__':
     cph.check_assumptions(df_formodel, p_value_threshold=0.01)
 
 
-    pp = PdfPages(args.model_report)
     #TODO add concordance index to title of the plot
-    fig,axis = treeplot(cph.summary,tit1=f"n={len(df_formodel.index)}. Cox model concordance index: {cph.concordance_index_:.4f}",logplot=True)
+    fig,axis = treeplot(cph.summary,tit1=f"{title_prefix} n={len(df_formodel.index)}.\n Cox model concordance index: {cph.concordance_index_:.4f}",logplot=True)
     pp.savefig(fig)
     pp.close()
     if args.show:

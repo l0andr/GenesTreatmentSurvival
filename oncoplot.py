@@ -54,7 +54,7 @@ if __name__ == '__main__':
     parser.add_argument("-input_mutation", help="Input file with mutations", type=str, required=True)
     parser.add_argument("-output_file", help="Output pdf file with plot", type=str, required=True)
     parser.add_argument("-list_of_factors", help="List of factors to be shown above oncoplot", type=str, required=True)
-    parser.add_argument("-list_of_genes", help="List of genes to be shown on oncoplot", type=str, required=True)
+    parser.add_argument("-list_of_genes", help="List of genes to be shown on oncoplot", type=str, default="")
     parser.add_argument("--nosortgenes", help="If set genes will not be sorted ", default=False,action='store_true')
     parser.add_argument("--show", help="If set, plots will be shown", default=False,action='store_true')
     parser.add_argument("--number_of_genes",type=int,default=20)
@@ -72,14 +72,16 @@ if __name__ == '__main__':
     mutation_df = mutation_df.replace(False, 0)
     # change type to int for all column started from gene_
     mutation_df = mutation_df.astype({col: 'int' for col in mutation_df.columns if 'gene_' in col})
-    list_of_genes = args.list_of_genes.split(',')
-    #add for each string in list perfix gene_
-    list_of_genes = ['gene_'+x for x in list_of_genes]
-    print(f"List of genes:{list_of_genes}")
-    #sort columns of mutation_df by list_of_genes
-    #if not args.nosortgenes:
-    #    mutation_df = mutation_df.reindex(sorted(mutation_df.columns), axis=1)
-    mutation_df = mutation_df[['patient_id']+list_of_genes]
+    if args.list_of_genes != '':
+        list_of_genes = args.list_of_genes.split(',')
+        #add for each string in list perfix gene_
+        if len(list_of_genes) > 0:
+            list_of_genes = ['gene_'+x for x in list_of_genes]
+        print(f"List of genes:{list_of_genes}")
+        #sort columns of mutation_df by list_of_genes
+        #if not args.nosortgenes:
+        #    mutation_df = mutation_df.reindex(sorted(mutation_df.columns), axis=1)
+        mutation_df = mutation_df[['patient_id']+list_of_genes]
 
     print(mutation_df.columns)
     #obatin number of column with gene mutations
@@ -90,8 +92,9 @@ if __name__ == '__main__':
 
     mutation_df.set_index('patient_id', inplace=True)
     mutation_df = mutation_df[mutation_df.sum(axis=0).nlargest(min(number_of_genes, number_of_genes_in_df - 1)).index]
-    list_of_genes = args.list_of_genes.split(',')
-    mutation_df = mutation_df[list_of_genes]
+    if args.list_of_genes != '':
+        list_of_genes = args.list_of_genes.split(',')
+        mutation_df = mutation_df[list_of_genes]
 
     mutation_df_sums = mutation_df.sum(axis=0)
     if args.verbose > 1:
@@ -167,5 +170,5 @@ if __name__ == '__main__':
     if args.show:
         plt.show()
     if args.output_file.endswith('.pdf'):
-        pp.savefig()
+        pp.savefig(op)
         pp.close()
