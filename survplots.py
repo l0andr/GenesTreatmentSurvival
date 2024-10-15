@@ -247,6 +247,10 @@ if __name__ == '__main__':
         fig, ax = plot_value_counts(df, columns)
         pp.savefig(fig)
     elif plot_type == "fisher_exact_test":
+        columns_prefix = ""
+        if args.columns.endswith('*'):
+            columns_prefix = args.columns[:-1]
+
         binary_outcome_column = args.status_col
         #check that all columns are binary
         for col in columns:
@@ -265,14 +269,19 @@ if __name__ == '__main__':
 
         table_data = []
         raw_lables = []
-
+        total_number_of_cases = []
+        for col in columns_binary:
+            total_number_of_cases.append(sum(df[col]))
+        #select top 10 columns with maximal number of cases
+        columns_top_10 = [x for _, x in sorted(zip(total_number_of_cases, columns_binary), reverse=True)][:10]
+        columns_top_10_names = [x.replace(columns_prefix,'') for x in columns_top_10]
+        if args.verbose > 1:
+            print(f"Top 10 columns with maximal number of cases: {columns_top_10_names}")
         for col in columns_binary:
             good_outcome_factor_true[col] = tdf_good_response[col].sum()
             good_outcome_factor_false[col] = len(tdf_good_response) - good_outcome_factor_true[col]
             bad_outcome_factor_true[col] = tdf_bad_response[col].sum()
             bad_outcome_factor_false[col] = len(tdf_bad_response) - bad_outcome_factor_true[col]
-            #if good_poutcome_factor_true[col] + bad_poutcome_factor_false[col] < 10:
-            #    continue
 
             ftable = [[good_outcome_factor_true[col], good_outcome_factor_false[col]] ,
                       [bad_outcome_factor_true[col], bad_outcome_factor_false[col]]]
@@ -281,7 +290,7 @@ if __name__ == '__main__':
                 continue
             oddsratio, pvalue = fisher_exact(ftable)
             fisher_results[col] = (oddsratio,pvalue)
-            if pvalue < p_value_threshold:
+            if pvalue < p_value_threshold and args.verbose > 1:
                 print(f"Factor {col} oddsratio {oddsratio:.4f} pvalue {pvalue:.4f} [TP TN FP FN]:{ftable}")
                 raw_lables.append(col)
                 table_data.append([ftable[0][0],ftable[0][1],ftable[1][0],ftable[1][1], oddsratio,pvalue])
@@ -294,14 +303,14 @@ if __name__ == '__main__':
         oddsratio = [10 if x == float('inf') else x for x in oddsratio]
         genes = [x for x in fisher_results.keys()]
         #remove perfix genes_ from gene names
-        genes = [x.replace('gene_','') for x in genes]
+        genes = [x.replace(columns_prefix,'') for x in genes]
         ax.scatter(np.log2([x[0] for x in fisher_results.values()]),-np.log10([x[1] for x in fisher_results.values()]))
         ax.set_xlabel('Log2(Odds ratio)')
         ax.set_ylabel('-Log10(P-value)')
         ax.grid()
         #select pvalue  < 0.05 and plot them in red
-        significant = pd.DataFrame({'log2(OddsRatio)':np.log2(oddsratio),'-log10(p-value)':-np.log10(pvalue),'name':genes},index=genes)
-        significant = significant[significant['-log10(p-value)'] > -np.log10(p_value_threshold)]
+        all_results = pd.DataFrame({'log2(OddsRatio)':np.log2(oddsratio),'-log10(p-value)':-np.log10(pvalue),'name':genes},index=genes)
+        significant = all_results[all_results['-log10(p-value)'] > -np.log10(p_value_threshold)]
         plt.scatter(significant['log2(OddsRatio)'], significant['-log10(p-value)'], color='red')
 
         #TODO: implement more general and robust solution for text shifts
@@ -314,7 +323,22 @@ if __name__ == '__main__':
                 txt_shift_dict[k] += 1
             ax.annotate("  " + txt, (significant['log2(OddsRatio)'][i], significant['-log10(p-value)'][i]-txt_shift_dict[k]*0.035),
                         rotation=0 * int(i) % 360, fontsize=8,ha='left')
-            # plot horizontal line at pvalue = p_value_threshold
+
+        txt_shift_dict2 = {}
+        #plot text labels for most frequent columns 
+        for i, txt in enumerate(all_results.index):
+            print(f"i={txt} txt={columns_top_10_names}")
+            if txt in columns_top_10_names and txt not in significant.index.tolist():
+
+                k = all_results['log2(OddsRatio)'][i] * 10 + all_results['-log10(p-value)'][i]
+                if k not in txt_shift_dict2:
+                    txt_shift_dict2[k] = 0
+                else:
+                    txt_shift_dict2[k] += 1
+                ax.annotate("  " + txt, (
+                all_results['log2(OddsRatio)'][i], all_results['-log10(p-value)'][i] - txt_shift_dict2[k] * 0.035),
+                        rotation=0 * int(i) % 360, fontsize=8, ha='left')
+
         ax.axhline(-np.log10(p_value_threshold), color='r', linestyle='--')
         # plot text near line with p_value_threshold
         ax.text(0.1, -np.log10(p_value_threshold) + 0.02, f'p-value = {p_value_threshold}', rotation=0, fontsize=12)
