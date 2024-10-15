@@ -16,7 +16,7 @@ data analysis and survival analysis of head and neck cancer patients.
 ### Processing graph
 
 Image below shows the processing graph of the analysis pipeline.
-<img src="images/processing_graph_10_15_2024.png" width="1200">
+<img src="img/processing_graph_10_15_2024.png" width="1200">
 
    
 ### Content
