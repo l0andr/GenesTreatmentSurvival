@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import tqdm
+import json
 from lifelines.statistics import logrank_test, multivariate_logrank_test
 from lifelines import KaplanMeierFitter
 from lifelines.utils import median_survival_times
@@ -90,7 +91,8 @@ def plot_histograms_of_float_values(df_clean:pd.DataFrame):
     return fig, ax
 
 def plot_kaplan_meier(df_pu: pd.DataFrame, column_name: str,
-                           status_column: str = "Status", survival_in_days: str = "Survival_in_days"):
+                           status_column: str = "Status", survival_in_days: str = "Survival_in_days",
+                           legend_dict = None):
 
         diff_values = sorted(df_pu[column_name].dropna().unique().tolist())
 
@@ -116,17 +118,21 @@ def plot_kaplan_meier(df_pu: pd.DataFrame, column_name: str,
                 gene_name = column_name.replace('gene_','')
                 full_label = label_str + " " +gene_name
             else:
-                label_str = str(s)
-                full_label = column_name + " = " + label_str
+                if legend_dict is None or column_name not in legend_dict:
+                    label_str = str(s)
+                    full_label = column_name + " = " + label_str
+                else:
+                    if str(s) in legend_dict[column_name]:
+                        full_label = legend_dict[column_name][str(s)]
+                    elif 'legend name' in legend_dict[column_name]:
+                        full_label = legend_dict[column_name]['legend name'] + " = " + str(s)
+
             kmf.fit(df_pu[survival_in_days][ix], df_pu[status_column][ix],
                     label=full_label + f" p-value = {p_values[s]:.5f} ")
             kmf.plot_survival_function(ax=ax[0], ci_legend=True, at_risk_counts=False)
-            at_risk_lables.append(f"{column_name} = {s}")
+            at_risk_lables.append(f"{full_label}")
             kmfs.append(kmf)
         add_at_risk_counts(*kmfs, labels=at_risk_lables, ax=ax[0])
-        #compute p-value of multivariate logrank test
-        p_value_multivariate = multivariate_logrank_test(df_pu[survival_in_days], df_pu[column_name], df_pu[status_column]).p_value
-
         ax[0].set_ylabel("est. probability of survival $\hat{S}(t)$")
         ax[0].set_xlabel(f"time $t$ (days)")
         ax[0].set_title(f"Kaplan-Meier survival estimates [{survival_in_days}] ")
@@ -159,7 +165,7 @@ if __name__ == '__main__':
     parser.add_argument("--show", help="If set, plots will be shown", default=False,
                         action='store_true')
     parser.add_argument("--verbose", help="Verbose mode", type=int, default=1)
-
+    parser.add_argument('--custom_legend', help="Path to json file with custom legends for KM plots", type=str, default=None)
     parser.add_argument("--filter_nan_columns", help="comma separated list of columns where NaN will be detected and filetered", default="")
     parser.add_argument("--title", help="Title of plot", type=str, default="")
     args = parser.parse_args()
@@ -170,6 +176,11 @@ if __name__ == '__main__':
     patient_id_col = args.patient_id_col
     show = args.show
     plot_type = args.plot
+    if args.custom_legend is not None:
+        with open(args.custom_legend, 'r') as fid:
+            legend_dict = json.load(fid)
+    else:
+        legend_dict = None
     df = pd.read_csv(input_csv)
     if args.filter_nan_columns != "":
         columns_to_filter = args.filter_nan_columns.split(',')
@@ -232,7 +243,7 @@ if __name__ == '__main__':
             if args.verbose > 1:
                 print(f"Plotting kaplan_meier for column {col} {len(columns)}\{i}. Number of unique values is {df[col].nunique()}. Number of Nulls is {df[col].isnull().sum()}")
             try:
-                fig = plot_kaplan_meier(df, col, status_col, survival_time_col)
+                fig = plot_kaplan_meier(df, col, status_col, survival_time_col, legend_dict=legend_dict)
                 pp.savefig(fig)
             except Exception as e:
                 print(f"Error while plotting kaplan_meier for column {col}: {str(e)}")

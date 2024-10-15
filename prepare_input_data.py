@@ -1,3 +1,5 @@
+from tabnanny import verbose
+
 import pandas as pd
 import numpy as np
 from typing import List,Optional
@@ -235,6 +237,7 @@ def data_preprocessing(df,last_date_columns:List[str],initial_date_columns:List[
     df.loc[(df['Age'] > age_quantile_25) & (df['Age'] <= age_quantile_50), 'age_level'] = 1
     df.loc[(df['Age'] > age_quantile_50) & (df['Age'] <= age_quantile_75), 'age_level'] = 2
     df.loc[df['Age'] > age_quantile_75, 'age_level'] = 3
+    print(f"Age quantiles {age_quantile_25} {age_quantile_50} {age_quantile_75}")
     #total number of mutation as sum of all columns that start from genes_ prefix
     #if ENE? have value not from list ['Y','N'] then set to None
     df.loc[df['ENE?'].apply(lambda x: x not in ['Y','N']), 'ENE?'] = None
