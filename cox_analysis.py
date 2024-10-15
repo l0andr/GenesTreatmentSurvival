@@ -485,18 +485,17 @@ if __name__ == '__main__':
             print(f"List of factors for multifactor analysis:{multi_factors}")
         df_formodel = df_formodel[list(set(multi_factors + keep_columns))]
     #TODO: check that we have not NaNs in data
-
-    cph = CoxPHFitter(alpha=ALPHA,penalizer=best_pen,l1_ratio=best_l1ratio)
-    cph.fit(df_formodel, duration_col=survival_time_col, event_col=status_col,show_progress=False)
-    score_dict = estimate_model_quality(cph, df_formodel, duration_col=survival_time_col, event_col=status_col,t0=calib_t0)
-    if args.verbose > 1:
-        print(f"Model scores:\n {score_dict}")
-
-    if args.verbose > 1:
-        print(f"Multivariante factors:")
-        cph.print_summary()
-    if len(list_of_univar_factors) > 0:
-        pass
+    if len(multi_factors) > 0:
+        cph = CoxPHFitter(alpha=ALPHA,penalizer=best_pen,l1_ratio=best_l1ratio)
+        cph.fit(df_formodel, duration_col=survival_time_col, event_col=status_col,show_progress=False)
+        score_dict = estimate_model_quality(cph, df_formodel, duration_col=survival_time_col, event_col=status_col,t0=calib_t0)
+        if args.verbose > 1:
+            print(f"Model scores:\n {score_dict}")
+        if args.verbose > 1:
+            print(f"Multivariante factors:")
+            cph.print_summary()
+        if len(list_of_univar_factors) > 0:
+            pass
     title_prefix = args.title
     pp = PdfPages(args.model_report)
     if args.univar is not None:
@@ -510,14 +509,12 @@ if __name__ == '__main__':
             plt.grid()
             plt.title(f"Partial effect of {factor}")
 
-    if args.verbose > 1:
-        print(cph.summary)
-    cph.check_assumptions(df_formodel, p_value_threshold=0.01)
-
-
-    #TODO add concordance index to title of the plot
-    fig,axis = treeplot(cph.summary,tit1=f"{title_prefix} n={len(df_formodel.index)}.\n Cox model concordance index: {cph.concordance_index_:.4f}",logplot=True)
-    pp.savefig(fig)
+    if len(multi_factors) > 0:
+        if args.verbose > 1:
+            print(cph.summary)
+        cph.check_assumptions(df_formodel, p_value_threshold=0.01)
+        fig,axis = treeplot(cph.summary,tit1=f"{title_prefix} n={len(df_formodel.index)}.\n Cox model concordance index: {cph.concordance_index_:.4f}",logplot=True)
+        pp.savefig(fig)
     pp.close()
     if args.show:
         plt.show()

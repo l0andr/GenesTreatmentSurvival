@@ -1,5 +1,5 @@
 #ignore virtialenv
-venv
+venv*
 #ignore csv,xls,xlsx files
 *.csv
 *.xls

@@ -1,0 +1,58 @@
+{
+  "sex": {
+    "Female": "Female",
+    "Male": "Male"
+  },
+  "response_0": {
+    "0":"Complete Response",
+    "1":"Partial Response",
+    "2":"Stable Disease",
+    "3":"Progression"
+    },
+  "response": {
+    "0.0":"Complete Response",
+    "1.0":"Partial Response",
+    "2.0":"Stable Disease",
+    "3.0":"Progression"
+    },
+  "age_level": {
+    "0.0": "Age level below 53.3 years",
+    "1.0": "Age level 53.3-62.5 years ",
+    "2.0": "Age level 62.5-70.3 years",
+    "3.0": "Age level above 70.3 years"
+  },
+   "drugs": {
+    "0": "No drugs consumption ",
+    "1": "Drugs consumption"
+  },
+  "alcohol_history": {
+    "0": "No alcohol consumption ",
+    "1": "Alcohol consumption (at least in the past)"
+  },
+  "anatomic_stage": {
+    "1": "Stage I",
+    "2": "Stage II",
+    "3": "Stage III",
+    "4": "Stage IV"
+  },
+  "anatomic_stage": {
+    "1.0": "Stage I",
+    "2.0": "Stage II",
+    "3.0": "Stage III",
+    "4.0": "Stage IV"
+  },
+  "pdl1_category": {
+    "1.0" : "PD-L1 <1%",
+    "2.0" : "PD-L1 = 1-10%",
+    "3.0" : "PD-L1 = 11-19%",
+    "4.0" : "PD-L1 =>20%"
+  },
+    "cancer_type": {
+        "Hypopharynx": "Hypopharynx",
+        "Larynx": "Larynx",
+        "Nasopharynx": "Nasopharynx",
+        "Oral Cavity": "Oral Cavity",
+        "Oropharynx": "Oropharynx"
+    }
+}
+
