@@ -1,7 +1,7 @@
-## Genes and Treatment-Related Survival Analysis
+## Paper: Tumor genomics and the association with survival in recurrent/metastatic head and neck cancer patients 
 
-This repository conatin set of script for analysis of survival data especially focused on 
-relation between mutations and treatment response. 
+This repository conatins set of scripts for data preparation, exploratory 
+data analysis and survival analysis of head and neck cancer patients. 
 
 ### Installation
 
@@ -13,14 +13,19 @@ relation between mutations and treatment response.
     ```
     pip install -r requirements.txt
     ```
+### Processing graph
+
+Image below shows the processing graph of the analysis pipeline.
+<img src="images/processing_graph_10_15_2024.png" width="1200">
+
    
 ### Content
 
-prepare_input_data.py - script for convertion raw data to expected data format<br>
-EDA_report.py - script for initial exploratory data analysis of survival data<br>
-table_transform.py - script for simple tables transformation<br>
-survival_analysis_initial_report.py - script for ploting kaplan-meier plots<br>
-survival_analysis_cox_model.py - script for creating cox-model and test regularization parameters <br>
+pipeline.sh - script for running all analysis steps
 
-pipeline.sh - script for running all analysis steps<br>
+prepare_input_data.py - script for convertion raw data to expected data format<br>
+prepare_tcga_data.py - script for convertion TCGA data to expected data format<br>
+prepare_treatment_data.py - script for preparation disease free time data <br> 
+table_transform.py - script for simple tables transformation<br>
+
 
