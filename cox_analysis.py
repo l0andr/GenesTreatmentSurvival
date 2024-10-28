@@ -10,6 +10,7 @@ from typing import Optional
 
 from lifelines import CoxPHFitter
 from lifelines.calibration import survival_probability_calibration
+from numpy.linalg.linalg import multi_dot
 from tqdm import tqdm
 from lifelines.utils import k_fold_cross_validation
 
@@ -471,6 +472,7 @@ if __name__ == '__main__':
             print(f"Univariante factors:")
             print(df_coomon_uni_factors)
     #preselect sagnificant factors on the base of univariant analysis:
+
     if args.univar is not None:
         multi_factors = list_of_univar_factors
         for col in df_coomon_uni_factors.columns:
@@ -484,7 +486,11 @@ if __name__ == '__main__':
         if args.verbose > 1:
             print(f"List of factors for multifactor analysis:{multi_factors}")
         df_formodel = df_formodel[list(set(multi_factors + keep_columns))]
+    else:
+        multi_factors = list(set(genes_columns + factor_columns + keep_columns))
+        df_formodel = df_formodel[list(set(genes_columns + factor_columns + keep_columns))]
     #TODO: check that we have not NaNs in data
+
     if len(multi_factors) > 0:
         cph = CoxPHFitter(alpha=ALPHA,penalizer=best_pen,l1_ratio=best_l1ratio)
         cph.fit(df_formodel, duration_col=survival_time_col, event_col=status_col,show_progress=False)

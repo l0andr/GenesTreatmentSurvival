@@ -33,9 +33,7 @@
     "1": "Stage I",
     "2": "Stage II",
     "3": "Stage III",
-    "4": "Stage IV"
-  },
-  "anatomic_stage": {
+    "4": "Stage IV",
     "1.0": "Stage I",
     "2.0": "Stage II",
     "3.0": "Stage III",
@@ -47,6 +45,15 @@
     "3.0" : "PD-L1 = 11-19%",
     "4.0" : "PD-L1 =>20%"
   },
+    "treatment_type": {
+    "1.0" : "Chemotherapy",
+    "2.0" : "Imunotherapy",
+    "3.0" : "Radiotherapy/Surgery"
+  },
+   "tnum": {
+    "legend name": "Attempt of treatment"
+  },
+
     "cancer_type": {
         "Hypopharynx": "Hypopharynx",
         "Larynx": "Larynx",

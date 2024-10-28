@@ -1,5 +1,6 @@
 import argparse
 import os
+from copy import deepcopy
 from tabnanny import verbose
 
 import pandas as pd
@@ -12,6 +13,7 @@ from lifelines.statistics import logrank_test, multivariate_logrank_test
 from lifelines import KaplanMeierFitter
 from lifelines.utils import median_survival_times
 from lifelines.plotting import add_at_risk_counts
+from matplotlib.pyplot import legend
 from scipy.stats import fisher_exact
 
 
@@ -96,7 +98,7 @@ def plot_kaplan_meier(df_pu: pd.DataFrame, column_name: str,
 
         diff_values = sorted(df_pu[column_name].dropna().unique().tolist())
 
-        fig, ax = plt.subplots(figsize=(8, 8), nrows=1, ncols=1, sharex=True)
+        fig, ax = plt.subplots(figsize=(12, 12), nrows=1, ncols=1, sharex=True)
         if not isinstance(ax, np.ndarray):
             ax = [ax]
         i = 0
@@ -129,7 +131,7 @@ def plot_kaplan_meier(df_pu: pd.DataFrame, column_name: str,
 
             kmf.fit(df_pu[survival_in_days][ix], df_pu[status_column][ix],
                     label=full_label + f" p-value = {p_values[s]:.5f} ")
-            kmf.plot_survival_function(ax=ax[0], ci_legend=True, at_risk_counts=False)
+            kmf.plot_survival_function(ax=ax[0], ci_legend=True)
             at_risk_lables.append(f"{full_label}")
             kmfs.append(kmf)
         add_at_risk_counts(*kmfs, labels=at_risk_lables, ax=ax[0])
@@ -181,7 +183,9 @@ if __name__ == '__main__':
             legend_dict = json.load(fid)
     else:
         legend_dict = None
-    df = pd.read_csv(input_csv)
+    df = pd.read_csv(input_csv, delimiter=',')
+    df.reset_index(inplace=True)
+
     if args.filter_nan_columns != "":
         columns_to_filter = args.filter_nan_columns.split(',')
         if verbose > 1:
@@ -228,22 +232,27 @@ if __name__ == '__main__':
                 if args.verbose > 1:
                     print(f"Column {col} has too many unique values, skip it")
                 continue
-            #compute number of cases of each value and skip if one of group have less then min_group_size
+            #compute number of cases of each value and skip group if number of cases is less than min_group_size
+            df_filtered = deepcopy(df)
             continue_flag = False
+            n_groups = df[col].unique()
             for j in df[col].unique():
                 if j is None or pd.isna(j):
                     continue
                 if df[col].value_counts()[j] < min_group_size:
                     if args.verbose > 1:
-                        print(f"Column {col} has too few cases of {j} {df[col].value_counts()[j]}, skip it")
-                    continue_flag = True
+                        print(f"Column {col} has too few cases of {j} {df[col].value_counts()[j]}, remove this group")
+                    df_filtered = df_filtered[df_filtered[col] != j]
+                    if len(df_filtered.index) < min_group_size:
+                        print(f"Column {col} has too few cases in all groups and will be skipped")
+                        continue_flag = True
             if continue_flag:
                 continue
 
             if args.verbose > 1:
                 print(f"Plotting kaplan_meier for column {col} {len(columns)}\{i}. Number of unique values is {df[col].nunique()}. Number of Nulls is {df[col].isnull().sum()}")
             try:
-                fig = plot_kaplan_meier(df, col, status_col, survival_time_col, legend_dict=legend_dict)
+                fig = plot_kaplan_meier(df_filtered, col, status_col, survival_time_col, legend_dict=legend_dict)
                 pp.savefig(fig)
             except Exception as e:
                 print(f"Error while plotting kaplan_meier for column {col}: {str(e)}")
