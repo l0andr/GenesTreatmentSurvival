@@ -1,4 +1,4 @@
-## Paper: Tumor genomics and the association with survival in recurrent/metastatic head and neck cancer patients 
+## Tumor genomics and the association with survival in recurrent/metastatic head and neck cancer patients 
 
 This repository conatins set of scripts for data preparation, exploratory 
 data analysis and survival analysis of head and neck cancer patients. 
@@ -15,8 +15,7 @@ data analysis and survival analysis of head and neck cancer patients.
     ```
 ### Processing graph
 
-Image below shows the processing graph of the analysis pipeline.
-<img src="images/processing_graph_10_15_2024.png" width="1200">
+<img src="img/processing_graph_10_15_2024.png" width="1200">
 
    
 ### Content
