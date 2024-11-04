@@ -43,7 +43,3 @@ data analysis and survival analysis of head and neck cancer patients.
 
 5. **`table_transform.py`**  
    This versatile script performs table transformations, including filtering and joining datasets. It allows for row filtering based on specific column values, merging multiple data tables, and creating combined datasets for analysis. This script is essential for adapting and refining input data, ensuring that only relevant information is passed to the analysis scripts.
-
----
-
-These descriptions provide a clear view of each script’s role in the analysis pipeline, highlighting how the tools from `pysurvtools` and `pyswimplot` contribute to a detailed and reproducible workflow for analyzing survival and mutation data.
