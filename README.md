@@ -7,7 +7,8 @@ data analysis and survival analysis of head and neck cancer patients.
 
 1. Clone repository to your local machine
     ```
-    git clone
+    git clone https://github.com/l0andr/HNSCC-Genes-Treatment-Survival-Analysis.git
+    cd HNSCC-Genes-Treatment-Survival-Analysis
    
 2. Install requirements
     ```
