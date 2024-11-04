@@ -43,7 +43,7 @@ data analysis and survival analysis of head and neck cancer patients.
    - **Survival Analysis**: Performs survival analysis with `cox_analysis.py` and `survplots.py`, both sourced from the [pysurvtools repository](https://github.com/l0andr/pysurvtools). These scripts generate Kaplan-Meier plots and Cox proportional hazards models to evaluate the impact of clinical and genetic factors on survival outcomes.
    - **Treatment Visualization**: Creates swimmer plots using `swimmer_plot.py` from the [pyswimplot repository](https://github.com/l0andr/pyswimplot), visualizing individual patient treatment timelines, including response types and overall survival.
 
-   The pipeline produces visual reports, including PDF outputs of oncoplots, Kaplan-Meier survival curves, and Cox regression analyses, all saved in the specified output directory. This modular workflow allows for efficient, reproducible analysis of complex genomic and clinical datasets.
+   The pipeline produces visual reports, including PDF outputs of oncoplots, Kaplan-Meier survival curves, and Cox regression analyses, all saved in the specified output directory. 
 
 2. **`prepare_input_data.py`**  
    This script processes raw input data, converting it into a structured format suitable for downstream analyses. It performs data cleaning, validation, and formatting, ensuring that columns and values align with the expected schema for analysis scripts in the pipeline. The output is a standardized CSV file, ready for integration with other data sources.
