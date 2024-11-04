@@ -12,7 +12,19 @@ data analysis and survival analysis of head and neck cancer patients.
 2. Install requirements
     ```
     pip install -r requirements.txt
+
+    git clone https://github.com/l0andr/pysurvtools.git
+    pip install -r pysurvtools/requirements.txt
+    cp pysurvtools/oncoplot.py .
+    cp pysurvtools/survplots.py .
+    cp pysurvtools/cox_analysis.py .
+    
+    git clone https://github.com/l0andr/pyswimplot.git
+    pip install -r pyswimplot/requirements.txt
+    cp pyswimplot/swimmer_plot.py .
+    
     ```
+    
 ### Processing graph
 
 <img src="img/processing_graph_10_15_2024.png" width="1200">
