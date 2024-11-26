@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import math
 
+from fontTools.merge.util import first
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Transform data from initial csv to csv suitable for survival analysis",
@@ -109,6 +111,7 @@ if __name__ == '__main__':
         #print(list_of_lost_repsonse_treatment)
         if args.verbose > 1:
             print(f"Patient {row[1]['patient_id']} {d} {resp_list} {treat_list}")
+        treatment_number = 0
         for i in range(0, len(d)):
             treat_status = int(row[1]['status'])
             if len(rt) <= i+1:
@@ -121,8 +124,17 @@ if __name__ == '__main__':
                 dft = rt[i+1] - d[i]
             treat = treat_list[i]
             resp = resp_list[i]
+            if not (resp is None or math.isnan(resp)):
+                treatment_number += 1
+            if treatment_number == 1:
+                first_treatment = 1
+            elif treatment_number > 1 and treatment_number < 4:
+                first_treatment = 2
+            else:
+                first_treatment = 3
 
-            new_row_tdf = {"tnum": i+1, "treatment_time": d[i], "recc_time": rt[i], "response": resp, "treatment_type": treat,
+            new_row_tdf = {"tindex": i+1,"tnum": treatment_number,"treatment_group":first_treatment, "treatment_time": d[i],
+                           "recc_time": rt[i], "response": resp, "treatment_type": treat,
                            "status": treat_status, "disease_free_time": dft, "patient_id": row[1]['patient_id'],
                            "anatomic_stage": row[1]['anatomic_stage'], "cancer_type": row[1]['cancer_type'],
                            "smoking": row[1]['smoking'], "alcohol_history": row[1]['alcohol_history'], "drugs": row[1]['drugs'],
