@@ -11,6 +11,7 @@ if __name__ == '__main__':
     parser.add_argument("-input_genes_csv", help="Genetical patient data", type=str, required=True)
     parser.add_argument("-input_delimiter", help="Delimiter for input file", type=str, default=",")
     parser.add_argument("-list_of_genes", help="List of genes for analysis", type=str, default="")
+    parser.add_argument("--age_levels", help="Age levels for analysis", type=str, default="53.29637234770705,62.506502395619435,70.3607118412046")
     parser.add_argument("-output_csv", help="Output CSV file", type=str, default="tcga_data2.csv")
     args = parser.parse_args()
     input_patient_csv = args.input_patient_csv
@@ -87,6 +88,23 @@ if __name__ == '__main__':
         if row['alcohol_history_documented'] == 'NO':
             df_filtered.loc[index,'alcohol'] = np.nan
     df_filtered['age'] = df_filtered['birth_days_to'].apply(lambda x: np.abs(x)/365.25)
+    if args.age_levels:
+        age_levels = sorted(args.age_levels.split(','),reverse=False)
+        group_number = 0
+        df_filtered['age_level'] = 0
+        for group_number in range(0,len(age_levels)+1):
+            if group_number == 0:
+                al = age_levels[group_number]
+                df_filtered.loc[df_filtered['age'] <= float(al),'age_level'] = float(group_number)
+            elif group_number == len(age_levels):
+                al = age_levels[group_number-1]
+                df_filtered.loc[df_filtered['age'] > float(al),'age_level'] = float(group_number)
+            else:
+                al = age_levels[group_number-1]
+                df_filtered.loc[(df_filtered['age'] > float(al)) & (df_filtered['age'] <= float(age_levels[group_number])),'age_level'] = float(group_number)
+
+
+
     for gene in list_of_genes:
         df_filtered["gene_"+gene]=False
     #cycle through all rows of table
